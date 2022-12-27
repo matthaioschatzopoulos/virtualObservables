@@ -160,9 +160,10 @@ class plotApproxVsSol:
 
     def add_curve_pol(self, psi, var, iterat):
         #psi = torch.transpose(psi, 0, 1)
+        psi = psi.cpu()
         var = torch.diag(var)
         var = torch.reshape(var, (-1, 1))
-        var = var.detach().numpy()
+        var = var.detach().cpu().numpy()
         nelsq = np.sqrt(self.nele)
         j = 0
         self.leg_tuple = self.leg_tuple + ("Approx. Solution, iter = " + str(iterat),)

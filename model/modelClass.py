@@ -33,7 +33,7 @@ import time
 from textwrap import wrap
 
 ### Classes and Functions ###
-torch.set_default_tensor_type(torch.DoubleTensor)
+
 
 class modelMvn:
     def __init__(self, Nx_samp, nele, lr_for_phi, Iter_grad, phi_max):

@@ -42,14 +42,30 @@ from utils.plotApproxVsTrueSol import plotApproxVsSol, plotApproxVsTrueSol
 from model.pdeForm import pdeForm
 
 ################ Testing weighting residuals ################
-torch.set_default_tensor_type(torch.DoubleTensor)
+
 #torch.set_printoptions(precision=5)
 np.set_printoptions(formatter={'float': '{: 0.14f}'.format})
 t = time.time()
+
+### Device Selection ###
+device='cpu'   # 'cpu' or 'cuda'
+
+if device == 'cpu':
+    use_cuda=False
+else:
+    use_cuda=True
+if use_cuda:
+    torch.set_default_tensor_type('torch.cuda.DoubleTensor')
+else:
+    torch.set_default_tensor_type(torch.DoubleTensor)
+device = torch.device("cuda:0" if use_cuda else "cpu")
+### Device Selection ###
+
+print(device)
 nele = 5
-Nx_samp = 1  # 5 is good
+Nx_samp = 100  # 5 is good
 mean_px = 0
-sigma_px = 0.1
+sigma_px = 1
 
 ### Definition and Form of the PDE ###
 pde = pdeForm(nele, mean_px, sigma_px, Nx_samp, lBoundDir=0, rBoundDir=0, lBoundNeu=None, rBoundNeu=None, rhs=-1)
@@ -79,12 +95,13 @@ for iii in range(0, 1):
     #sig_mat = torch.mm(sig_mat, sig_mat.t()) + torch.eye(nele, nele)
     # phi_max = np.random.rand(nele, 1)*0.1
 
-    Iter_svi = 10
+    Iter_svi = 100000
     Iter_grad = 1
     sigma_r = 10**(0) ### Very sensitivy to changes (For the multivariate is much different)
     sigma_r_mult = 1.00
     sigma_w = 10000000
-    Iter_outer = 100
+    Iter_outer = 1
+    Iter_total = Iter_outer*Iter_svi
     poly_pow = 2
     sigma_r_f = round(sigma_r * sigma_r_mult ** Iter_outer, 2)
     mode="Polynomial" ### "TrueSol" or "Polynomial"
@@ -95,7 +112,7 @@ for iii in range(0, 1):
     phi_max = phi_max / torch.linalg.norm(phi_max)
 
     ### Inputs ###
-    lr = 0.0004 ### In the PolynomialMultivariate case reducing the learning rate can have a positive effect
+    lr = 0.01 ### In the PolynomialMultivariate case reducing the learning rate can have a positive effect
     lr_for_phi = 0.005
     eigRelax = 0.05
     progress_perc = 0
@@ -132,9 +149,9 @@ for iii in range(0, 1):
     samples = modelDeltaPolynomial(pde, phi_max=phi_max, poly_pow=poly_pow, allRes=True)
     model = samples.executeModel
     guide = samples.executeGuide
-    plot_phispace = plotPhiVsSpace(torch.squeeze(phi_max, 1), nele, label_id, Iter_outer, row=7, col=5)
+    plot_phispace = plotPhiVsSpace(torch.squeeze(phi_max, 1), nele, label_id, Iter_total, row=7, col=5)
+    kkk = 0
     for kk in range(0, Iter_outer):
-
         hist_elbo = []
         pyro.clear_param_store()
 
@@ -157,7 +174,7 @@ for iii in range(0, 1):
 
         for i in range(num_iters):
 
-
+            kkk = kkk+1
 
             ### SVI step ###
             elbo, current_grad = svi.stepGrad(phi_max,
@@ -167,23 +184,9 @@ for iii in range(0, 1):
             val = []
 
 
-
-            """
-            ### lr_svi rate regulator/controller ###
-            grad_nrate = -(gradsNorm[kk] - gradsNorm[kk - 1]) / gradsNorm[kk - 1]
-            if kk > 1000 and gradsNorm[kk] > 10**(-8):
-                if grad_nrate < 1.06:
-                    lr = lr * 1.001
-                elif grad_nrate > 1.2:
-                    lr = lr * 0.999
-            else:
-                lr = 0.000001
-            ### lr_svi rate regulator/controller ###
-            """
-
             for name, value in pyro.get_param_store().items():
                 #print(value.grad)
-                val.append(value.clone().detach().numpy())
+                val.append(value.clone().detach().cpu().numpy())
                 assert value.requires_grad == True, "Not leaf tensor"
                 #print(value.grad)
                 #grads.append(value.clone.grad)
@@ -196,7 +199,7 @@ for iii in range(0, 1):
                     grads.append(current_grad[jjjj])
                     gradsNorm.append(torch.linalg.norm(current_grad[jjjj]))
 
-            psi = torch.from_numpy(val[0])
+            psi = torch.from_numpy(val[0]).to(device=device)
             NN = False
             if len(val) == 2:
                 Sigmaa = torch.from_numpy(val[1])
@@ -207,7 +210,7 @@ for iii in range(0, 1):
             elif NN == True:
                 Sigmaa = torch.zeros(nele)
                 samples.psii = [psi, torch.from_numpy(val[1])]
-            current_residual =torch.mean(torch.stack(samples.temp_res)).clone().detach().numpy()
+            current_residual =torch.mean(torch.stack(samples.temp_res)).clone().detach().cpu().numpy()
             ### Updating parameters of the model/guide ###
 
             #samples.removeSamples()
@@ -230,33 +233,37 @@ for iii in range(0, 1):
                 if len(val) == 2:
                     print("Standard deviation: ", Sigmaa)
             """
+            residual_history.append(current_residual)
+            ### Recording History & Applying Multipliers to hyperparameters
+            # psi_history = np.concatenate((psi_history, np.transpose(val[0])), axis=1) ## Simple case
+            psi_history = np.concatenate((psi_history, np.reshape(np.transpose(val[0]), (-1, 1))),
+                                         axis=1)  ## For Polynomials
+            # sigma_history = np.concatenate((sigma_history, np.reshape(val[1],(-1, 1))), axis=1)
+            phi_max_history = np.concatenate((phi_max_history, torch.reshape(phi_max, (-1, 1)).detach().cpu().numpy()),
+                                             axis=1)
+            sigma_r = sigma_r * sigma_r_mult
+            if (kkk + 1) % ((Iter_total) * 0.01) == 0:
 
-        residual_history.append(current_residual)
-        ### Recording History & Applying Multipliers to hyperparameters
-        #psi_history = np.concatenate((psi_history, np.transpose(val[0])), axis=1) ## Simple case
-        psi_history = np.concatenate((psi_history, np.reshape(np.transpose(val[0]), (-1, 1))), axis=1) ## For Polynomials
-        #sigma_history = np.concatenate((sigma_history, np.reshape(val[1],(-1, 1))), axis=1)
-        phi_max_history = np.concatenate((phi_max_history, torch.reshape(phi_max, (-1, 1)).detach().numpy()), axis=1)
-        sigma_r = sigma_r * sigma_r_mult
-        #plot_diffsigmar.add_curve(psi_history, kk, sigma_r, time.time()-tt)
-        #print(residualcalc.residual.item())
-        #residual_history.append(residualcalc.residual.item())
+                #plot_diffsigmar.add_curve(psi_history, kk, sigma_r, time.time()-tt)
+                #print(residualcalc.residual.item())
+                #residual_history.append(residualcalc.residual.item())
 
-        ### Printing Progress ###
-        if (kk+1) % ((Iter_outer)*0.01) == 0:
-            progress_perc = progress_perc + 1
-            #print("Iteration: ", kk,"/",Iter_outer, " ELBO", elbo, "sigma_r", sigma_r)
-            print("Progress: ", progress_perc, "/", 100, " ELBO", elbo,"Residual",
-                  min(residual_history[-int(Iter_outer/100):]) , "sigma_r", sigma_r)
-            print("Gradient:",current_grad)
-            print("Parameters psi:",psi)
-            if len(val) == 2:
-                print("Standard deviation: ", Sigmaa)
+                ### Printing Progress ###
 
-        plot_phispace.add_curve(phi_max, kk)
+                progress_perc = progress_perc + 1
+                #print("Iteration: ", kk,"/",Iter_outer, " ELBO", elbo, "sigma_r", sigma_r)
+                print("Progress: ", progress_perc, "/", 100, " ELBO", elbo,"Residual",
+                      min(residual_history[-int(Iter_outer/100):]) , "sigma_r", sigma_r)
+                print("Gradient:",current_grad)
+                print("Parameters psi:",psi)
+                if len(val) == 2:
+                    print("Standard deviation: ", Sigmaa)
+                plot_phispace.add_curve(phi_max, kkk)
+
+
     if iii == 0:
         plot_appSol = plotApproxVsSol(psi, poly_pow, pde, sigma_px, label_id, Iter_outer)
-    plot_appSol.add_curve_pol(psi, torch.diag(Sigmaa), kk)
+    plot_appSol.add_curve_pol(psi, torch.diag(Sigmaa), kkk)
     tt = time.time()
 print("end")
 print("end2")
@@ -265,7 +272,7 @@ print("end2")
 
 #plotModelDists(model, guide, phi_max, A, u, sigma_r, sigma_w, psi, nele)
 
-plotSimplePsi_Phi(Iter_outer, nele, psi_history[0:nele,:], title_id, label_id, phi_max_history, t,
+plotSimplePsi_Phi(Iter_total, nele, psi_history[0:nele,:], title_id, label_id, phi_max_history, t,
                   residual_history, grads, gradsNorm, Iter_svi) # instead of grads it has only gradsNorm
 
 plot_phispace.show()
@@ -280,12 +287,11 @@ test = 1
 #for i in range(0, len(grads)):
 #    print("Iteration",i, " : ", grads[i])
 print(psi)
-tess = torch.squeeze(psi, 0)
-
 
 ### Plot of parameter profile VS Taylor parameter profile ###
-plt.plot(torch.linspace(0, 1, nele), torch.squeeze(psi, 0))
-s = torch.linspace(0, 1, 100)
+psi = psi.cpu()
+plt.plot(torch.linspace(0, 1, nele).cpu(), torch.squeeze(psi, 0))
+s = torch.linspace(0, 1, 100).cpu()
 plt.plot(s, (-s**2/2+s/2), "--b")
 plt.plot(s, -(-s**2/2+s/2), "--r")
 plt.plot(s, 1/2*(-s**2/2+s/2), "--g")

@@ -31,21 +31,20 @@ from torch.distributions import constraints
 from pyro.infer import Predictive
 import time
 from textwrap import wrap
-torch.set_default_tensor_type(torch.DoubleTensor)
 
-def plotGradDeg(grad, deg):
-    grad = torch.stack(grad)
+def plotGradDeg(grad, deg, smoothing=10):
+    grad = torch.stack(grad).cpu()
     grad = grad[:,:, deg]
     plt.figure(60+deg)
     p0=plt.plot(np.linspace(0, len(grad), len(grad)), grad[:,0], '-m', label="$dF/ d \psi_{ji}$")
     p1 = plt.plot(np.linspace(0, len(grad), len(grad)), grad[:, 1:], '-m')
     norm = np.linalg.norm(grad.clone().detach().numpy(),axis =1)
     mean = np.mean(grad.clone().detach().numpy(),axis =1)
-    p2=plt.plot(np.linspace(0, len(grad), len(grad)), smooth(mean,1000), '-c',
+    p2=plt.plot(np.linspace(0, len(grad), len(grad)), smooth(mean,smoothing), '-c',
                 label="Moving Average Mean $dF/ d \psi_{"+str(deg)+"i}$")
-    p3=plt.plot(np.linspace(0, len(grad), len(grad)), smooth(norm, 1000), '-k', label ="Moving Average Norm $dF/ d \psi_{"+str(deg)+"i}$")
+    p3=plt.plot(np.linspace(0, len(grad), len(grad)), smooth(norm, smoothing), '-k', label ="Moving Average Norm $dF/ d \psi_{"+str(deg)+"i}$")
     plt.grid(True)
-    plt.yscale('symlog', linthresh=10**(-6))
+    plt.yscale('symlog', linthresh=10**(-10))
     plt.title("Convergence of $dF/ d \psi_{"+str(deg)+"i}$")
     plt.xlabel("Number of external iterations")
     plt.ylabel("$dF/ d \psi_{"+str(deg)+"i}$")
@@ -70,7 +69,7 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, title_id, label_id, phi_max
 
     plt.figure(1)
     for i in range(0, nele):
-        plt.plot(np.linspace(1, Iter_outer, Iter_outer + 1), psi_history[i, :], '-r')
+        plt.plot(np.linspace(1, Iter_outer, Iter_outer+1), psi_history[i, :], '-r')
     plt.grid(True)
     #plt.title("Convergence \n" + "\n".join(wrap(title_id)))
     plt.title("Convergence of parameters $\psi_{0i}$")
@@ -85,7 +84,7 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, title_id, label_id, phi_max
 
     plt.figure(2)
     for i in range(0, nele):
-        plt.plot(np.linspace(1, Iter_outer, Iter_outer + 1), phi_max_history[i, :], '-b')
+        plt.plot(np.linspace(1, Iter_outer, Iter_outer+1), phi_max_history[i, :], '-b')
     plt.grid(True)
     #plt.title("Parameters psi convergence  \n" + "\n".join(wrap(title_id)))
     plt.title("Convergence of parameters $\phi_{i}$")
@@ -115,11 +114,13 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, title_id, label_id, phi_max
     # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
     plt.show()
 
+
+
     plt.figure(4)
     gradval=np.zeros((len(grads),nele))
     gradvalNorm = np.zeros((len(grads), 1))
     for i in range(0, len(gradvalNorm)):
-        gradvalNorm[i,0]=gradsNorm[i]
+        gradvalNorm[i,0]=gradsNorm[i].cpu()
     """
     for j in range(0, nele):
         for i in range(0, len(grads)):
@@ -128,7 +129,7 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, title_id, label_id, phi_max
     for i in range(0, nele):
         plt.plot(np.linspace(1, Iter_outer, Iter_outer*Iter_svi), abs(gradval[:,i]), '-m')
     """
-    plt.plot(np.linspace(1, Iter_outer, Iter_outer * Iter_svi), abs(gradvalNorm), '-k')
+    plt.plot(np.linspace(1, Iter_outer, Iter_outer), abs(gradvalNorm), '-k')
     #plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 100), '-r')
     plt.grid(True)
     plt.yscale('log')
@@ -142,7 +143,7 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, title_id, label_id, phi_max
     # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
     plt.show()
     for i in range(0, len(grads[0][0,:])):
-        plotGradDeg(grads, i)
+        plotGradDeg(grads, i, smoothing=100)
 def plotSimplePsi_Phi_Pol(Iter_outer, nele, psi_history, title_id, label_id, phi_max_history, t, residual,grads,
                       gradsNorm, Iter_svi):
 
@@ -213,10 +214,12 @@ def plotSimplePsi_Phi_Pol(Iter_outer, nele, psi_history, title_id, label_id, phi
 
 class plotPhiVsSpace:
     def __init__(self, phi, nele, label_id, Iter_outer, row, col):
+        tess = torch.zeros(1)
         self.phi = torch.cat((torch.zeros(1), phi))
-        self.phi = self.phi.detach().numpy()
+        self.phi = self.phi.detach().cpu().numpy()
         self.nele = nele
         self.s = torch.linspace(0,1,nele+1)
+        self.s = self.s.cpu()
         self.label_id = label_id
         self.fig = plt.figure(2)
         self.grid_num = int(col)  # num of columns
@@ -243,7 +246,7 @@ class plotPhiVsSpace:
 
     def add_curve(self, phi, iterat):
         if iterat % self.mod_iter == 0:
-            phi = torch.cat((torch.zeros(1), phi)).detach().numpy()
+            phi = torch.cat((torch.zeros(1), phi)).detach().cpu().numpy()
             i = self.counter//self.grid_num
             j = self.counter % self.grid_num
             if j>=0:

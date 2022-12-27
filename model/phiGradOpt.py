@@ -32,8 +32,6 @@ from pyro.infer import Predictive
 from utils.powerIteration import powerIteration
 import time
 from textwrap import wrap
-torch.set_default_tensor_type(torch.DoubleTensor)
-
 
 def phiGradOptDelta(phi_max, lrr, nele, mean_px, sigma_px, Nx_samp, psi, A, u, iter_grad, sample_x, sample_y):
 

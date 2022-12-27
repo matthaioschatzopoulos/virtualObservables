@@ -32,7 +32,6 @@ from pyro.infer import Predictive
 import time
 from textwrap import wrap
 
-
 class pdeForm:
     def __init__(self, nele, mean_px, sigma_px, Nx_samp, lBoundDir=None, rBoundDir=None, lBoundNeu=None, rBoundNeu=None, rhs=None):
         self.nele = nele
