@@ -32,7 +32,7 @@ from pyro.infer import Predictive
 import time
 from textwrap import wrap
 
-def plotGradDeg(grad, deg, smoothing=10):
+def plotGradDeg(grad, deg, smoothing=10, display_plots=False):
     grad = torch.stack(grad).cpu()
     grad = grad[:,:, deg]
     plt.figure(60+deg)
@@ -57,15 +57,19 @@ def plotGradDeg(grad, deg, smoothing=10):
     if not os.path.exists('./results/gradsOrder/'):
         os.makedirs('./results/gradsOrder/')
     plt.savefig("./results/gradsOrder/der_"+str(deg)+".png", dpi =300)
-    plt.show()
-    plt.close(60+deg)
+    if display_plots:
+        plt.show()
+        plt.close(60+deg)
+
+
+
 def smooth(y, box_pts):
     box = np.ones(box_pts) / box_pts
     y_smooth = np.convolve(y, box, mode='same')
     return y_smooth
 
-def plotSimplePsi_Phi(Iter_outer, nele, psi_history, title_id, label_id, phi_max_history, t, residual,grads,
-                      gradsNorm, Iter_svi):
+def plotSimplePsi_Phi(Iter_outer, nele, psi_history, psi, phi_max_history, t, residual,grads,
+                      gradsNorm, Iter_svi, display_plots):
 
     plt.figure(1)
     for i in range(0, nele):
@@ -78,9 +82,10 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, title_id, label_id, phi_max
     plt.legend(["Convergence of $\psi_i$"+" Time:"+"{:.2f}".format((time.time()-t)/60) +" min",])
     if not os.path.exists('./results/order0Psi/'):
         os.makedirs('./results/order0Psi/')
-    plt.savefig("./results/order0Psi/psi" + label_id, dpi=300, bbox_inches='tight')
+    plt.savefig("./results/order0Psi/psi", dpi=300, bbox_inches='tight')
     #plt.savefig("./psi" + label_id, dpi=300, bbox_inches='tight')
-    plt.show()
+    if display_plots:
+        plt.show()
 
     plt.figure(2)
     for i in range(0, nele):
@@ -92,9 +97,10 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, title_id, label_id, phi_max
     plt.ylabel("$\phi$ for each node i")
     if not os.path.exists('./results/order0Phi/'):
         os.makedirs('./results/order0Phi/')
-    plt.savefig("./results/order0Phi/phi" + label_id, dpi=300, bbox_inches='tight')
+    plt.savefig("./results/order0Phi/phi", dpi=300, bbox_inches='tight')
     #plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
-    plt.show()
+    if display_plots:
+        plt.show()
 
 
 
@@ -110,9 +116,10 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, title_id, label_id, phi_max
     plt.legend(["Residual Norm", "Average Residual Norm"])
     if not os.path.exists('./results/residuals/'):
         os.makedirs('./results/residuals/')
-    plt.savefig("./results/residuals/res" + label_id, dpi=300, bbox_inches='tight')
+    plt.savefig("./results/residuals/res", dpi=300, bbox_inches='tight')
     # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
-    plt.show()
+    if display_plots:
+        plt.show()
 
 
 
@@ -139,23 +146,41 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, title_id, label_id, phi_max
     plt.ylabel("$\partial log(L)/ \partial \psi$")
     if not os.path.exists('./results/grads/'):
         os.makedirs('./results/grads/')
-    plt.savefig("./results/grads/grad" + label_id, dpi=300, bbox_inches='tight')
+    plt.savefig("./results/grads/grad", dpi=300, bbox_inches='tight')
     # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
-    plt.show()
+    if display_plots:
+        plt.show()
     for i in range(0, len(grads[0][0,:])):
-        plotGradDeg(grads, i, smoothing=100)
-def plotSimplePsi_Phi_Pol(Iter_outer, nele, psi_history, title_id, label_id, phi_max_history, t, residual,grads,
+        plotGradDeg(grads, i, smoothing=100, display_plots=display_plots)
+
+    ### Plot of parameter profile VS Taylor parameter profile ###
+    psi = psi.cpu()
+    plt.plot(torch.linspace(0, 1, nele).cpu(), psi)
+    s = torch.linspace(0, 1, 100).cpu()
+    plt.plot(s, (-s ** 2 / 2 + s / 2), "--b")
+    plt.plot(s, -(-s ** 2 / 2 + s / 2), "--r")
+    plt.plot(s, 1 / 2 * (-s ** 2 / 2 + s / 2), "--g")
+    plt.title("0th, 1st, 2nd order parameters $\psi$ VS the respective taylor parameters")
+    plt.xlabel("Space s")
+    plt.ylabel("Value of $\psi_i$")
+    plt.grid()
+    if not os.path.exists('./results/taylorParam/'):
+        os.makedirs('./results/taylorParam/')
+    plt.savefig("./results/taylorParam/taylorParam.png", dpi=300, bbox_inches='tight')
+    if display_plots:
+        plt.show()
+def plotSimplePsi_Phi_Pol(Iter_outer, nele, psi_history, label_id, phi_max_history, t, residual,grads,
                       gradsNorm, Iter_svi):
 
     plt.figure(1)
     for i in range(0, nele):
         plt.plot(np.linspace(1, Iter_outer, Iter_outer + 1), psi_history[i, :], '-r')
     plt.grid(True)
-    plt.title("Parameters psi convergence \n" + "\n".join(wrap(title_id)))
+    plt.title("Parameters $\psi_{0i}$ convergence")
     plt.xlabel("Number of external iterations")
     plt.ylabel("Value of Psi for each node in location [0.2, 0.4, 0.6, 0.8, 1.0]")
     plt.legend(["Convergence of $\psi_i$"+" Time:"+"{:.2f}".format((time.time()-t)/60) +" min",])
-    plt.savefig("./figs_psi/psi" + label_id, dpi=300, bbox_inches='tight')
+    plt.savefig("./figs_psi/psi", dpi=300, bbox_inches='tight')
     #plt.savefig("./psi" + label_id, dpi=300, bbox_inches='tight')
     plt.show()
 
@@ -163,10 +188,10 @@ def plotSimplePsi_Phi_Pol(Iter_outer, nele, psi_history, title_id, label_id, phi
     for i in range(0, nele):
         plt.plot(np.linspace(1, Iter_outer, Iter_outer + 1), phi_max_history[i, :], '-b')
     plt.grid(True)
-    plt.title("Parameters psi convergence  \n" + "\n".join(wrap(title_id)))
+    plt.title("Parameters $\phi_{0i} convergence")
     plt.xlabel("Number of external iterations")
     plt.ylabel("Value of Psi for each node in location [0.2, 0.4, 0.6, 0.8, 1.0]")
-    plt.savefig("./figs_phi_max/phi" + label_id, dpi=300, bbox_inches='tight')
+    plt.savefig("./figs_phi_max/phi", dpi=300, bbox_inches='tight')
     #plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
     plt.show()
 
@@ -180,11 +205,11 @@ def plotSimplePsi_Phi_Pol(Iter_outer, nele, psi_history, title_id, label_id, phi
     plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 100), '-r')
     plt.grid(True)
     plt.yscale('log')
-    plt.title("Residual convergence  \n" + "\n".join(wrap(title_id)))
+    plt.title("Residuals convergence")
     plt.xlabel("Number of external iterations")
     plt.ylabel("$<r^2_{w \phi max}>_q$")
     plt.legend(["Residual", "Average Residual"])
-    plt.savefig("./res/res" + label_id, dpi=300, bbox_inches='tight')
+    plt.savefig("./res/res", dpi=300, bbox_inches='tight')
     # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
     plt.show()
 
@@ -203,24 +228,23 @@ def plotSimplePsi_Phi_Pol(Iter_outer, nele, psi_history, title_id, label_id, phi
     #plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 100), '-r')
     plt.grid(True)
     plt.yscale('log')
-    plt.title("Gradients convergence  \n" + "\n".join(wrap(title_id)))
+    plt.title("Gradients convergence")
     plt.xlabel("Number of external iterations")
     plt.ylabel("$\partial log(L)/ \partial \psi$")
-    plt.savefig("./res/grads" + label_id, dpi=300, bbox_inches='tight')
+    plt.savefig("./res/grads", dpi=300, bbox_inches='tight')
     # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
     plt.show()
 
 
 
 class plotPhiVsSpace:
-    def __init__(self, phi, nele, label_id, Iter_outer, row, col):
-        tess = torch.zeros(1)
+    def __init__(self, phi, nele, Iter_outer, display_plots, row, col):
+        self.display_plots = display_plots
         self.phi = torch.cat((torch.zeros(1), phi))
         self.phi = self.phi.detach().cpu().numpy()
         self.nele = nele
         self.s = torch.linspace(0,1,nele+1)
         self.s = self.s.cpu()
-        self.label_id = label_id
         self.fig = plt.figure(2)
         self.grid_num = int(col)  # num of columns
         self.rows = int(row)
@@ -261,11 +285,13 @@ class plotPhiVsSpace:
             self.counter += 1
 
     def show(self):
-        plot_title = "Eigenvector $\phi$ in each node ("+ str(self.nele)+" in total) \n"\
-                     + "\n".join(wrap(self.label_id))
+        #plot_title = "Eigenvector $\phi$ in each node ("+ str(self.nele)+" in total) \n"\
+        #             + "\n".join(wrap(self.label_id))
+        plot_title = "Eigenvector $\phi$ in each node ("+ str(self.nele)+" in total) \n"
         self.fig.suptitle(plot_title, fontsize=16)
         if not os.path.exists('./results/phiVsNodes/'):
             os.makedirs('./results/phiVsNodes/')
-        self.fig.savefig("./results/phiVsNodes/psiVsNodes" + self.label_id, dpi=300, bbox_inches='tight')
+        self.fig.savefig("./results/phiVsNodes/psiVsNodes", dpi=300, bbox_inches='tight')
         #self.fig.tight_layout()
-        self.fig.show()
+        if self.display_plots:
+            self.fig.show()

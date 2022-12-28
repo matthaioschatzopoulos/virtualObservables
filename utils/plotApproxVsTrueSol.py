@@ -100,14 +100,14 @@ class plotApproxVsTrueSol:
 
 
 class plotApproxVsSol:
-    def __init__(self, psi, poly_pow, pde, sigma_px, label_id, iterat):
+    def __init__(self, psi, poly_pow, pde, sigma_px, iterat, display_plots):
         self.iterat = iterat
         self.pde = pde
         self.psi = psi
+        self.display_plots = display_plots
         self.poly_pow = poly_pow
         self.nele = pde.effective_nele
         self.tot_nele = pde.nele
-        self.label_id = label_id
         self.conf_inter = 2
         self.conf_inter_px = 2
         nelsq = np.sqrt(self.nele)
@@ -194,12 +194,13 @@ class plotApproxVsSol:
             if j == self.nele:
                 break
 
-    def show(self, title_id):
+    def show(self):
         #plot_title = "Plot of Approximate Vs True Solution \n" + "\n".join(wrap(title_id))
         plot_title = "Plot of Approximate Vs True Solution for different x"
         self.fig.suptitle(plot_title, fontsize=16)
         if not os.path.exists('./results/approxVsTrueSol/'):
             os.makedirs('./results/approxVsTrueSol/')
-        self.fig.savefig("./results/approxVsTrueSol/" + self.label_id, dpi=300, bbox_inches='tight')
+        self.fig.savefig("./results/approxVsTrueSol/approxVsTrueSol", dpi=300, bbox_inches='tight')
         #self.fig.tight_layout()
-        self.fig.show()
+        if self.display_plots:
+            self.fig.show()
