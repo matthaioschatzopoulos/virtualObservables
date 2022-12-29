@@ -355,7 +355,7 @@ class residualCalc:
             self.psi_init = torch.rand(1, self.nele) * 0.01  # Initialization of psi
             self.psi_history_init = np.zeros((self.nele, 1))
         elif mode == "Polynomial":
-            self.psi_init = torch.rand(self.nele, poly_pow + 1) * 0.01 # Initialization of psi
+            self.psi_init = torch.ones(self.nele, poly_pow + 1) * 10 # Initialization of psi
             self.psi_history_init = np.zeros((self.nele * (poly_pow + 1), 1))
 
     def calcResidual(self, sample_x, sample_y):

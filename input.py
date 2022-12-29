@@ -3,12 +3,12 @@ The parameters of the program are defined here.
 """
 device='cpu'   # 'cpu' or 'cuda'
 nele = 5
-Nx_samp = 2  # 5 is good
+Nx_samp = 5000  # 5 is good
 mean_px = 0
 sigma_px = 1
-Iter_svi = 1500
+Iter_svi = 10000
 Iter_outer = 1
-lr = 0.01  ### In the PolynomialMultivariate case reducing the learning rate can have a positive effect
+lr = 0.001  ### In the PolynomialMultivariate case reducing the learning rate can have a positive effect
 lr_for_phi = 0.005
 eigRelax = 0.05
 Iter_grad = 1
@@ -20,7 +20,7 @@ poly_pow = 2
 sigma_r_f = round(sigma_r * sigma_r_mult ** Iter_outer, 2)
 mode = "Polynomial"  ### "TrueSol" or "Polynomial"
 power_iter_tol = 10 ** (-5)
-display_plots = False
+display_plots = True
 
 #Boundary Conditions
 lBoundDir = 0

@@ -30,6 +30,7 @@ smoke_test = ('CI' in os.environ)
 from torch.distributions import constraints
 from pyro.infer import Predictive
 import time
+#from numba import jit
 from textwrap import wrap
 
 ### Classes and Functions ###
@@ -422,8 +423,11 @@ class modelDeltaPolynomial:
             else:
                 self.residuals = torch.zeros(self.nele)
                 self.iter_plate = len(self.residuals)
-            self.psii = torch.rand(self.nele, poly_pow + 1) * 0.01  # Initialization of psi
+            self.psii = torch.rand(self.nele, poly_pow + 1) *0.01# Initialization of psi
             self.temp_res = []
+            self.model_time = 0
+            self.guide_time = 0
+            self.sample_time = 0
 
     def removeSamples(self):
         self.Nx_counter = 0
@@ -436,12 +440,13 @@ class modelDeltaPolynomial:
         return y
 
     def executeModel(self, phi_max, sigma_r, sigma_w):
+        t0 = time.time()
         x = pyro.sample("x", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
         y = pyro.sample("y", dist.MultivariateNormal(loc=torch.zeros((1, self.nele)),
                                                      covariance_matrix=sigma_w ** 2 * torch.eye(self.nele, self.nele)))
 
         b = self.pde.calcResKernel(x, y)
-        self.temp_res.append(torch.linalg.norm(b))
+        self.temp_res.append(torch.linalg.norm(b.clone().detach()))
         if not self.allRes:
             c = torch.matmul(b, torch.transpose(b, 0, 1))
             phi_max = torch.reshape(phi_max, (-1, 1))
@@ -453,23 +458,24 @@ class modelDeltaPolynomial:
         else:
             b = torch.squeeze(b, 1)
             res = b
-
         with pyro.plate("data", self.iter_plate):
             residuals = pyro.sample("residuals", dist.Normal(res, sigma_r), obs=self.residuals)
-
+        self.model_time += time.time() - t0
 
     def executeGuide(self, phi_max, sigma_r, sigma_w):
+        t0 = time.time()
         x = pyro.sample("x", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
         mq = pyro.param('mq', self.psii)
         polvecx = self.polynomial(x)
         mq_final = torch.matmul(mq, polvecx)
         mq_final = torch.transpose(mq_final, 0, 1)
+        mq_final = torch.squeeze(mq_final, 0)
         y = pyro.sample("y", dist.Delta(mq_final, event_dim=1))
-        tess = y
-        tsss = y
+        self.guide_time = self.guide_time + time.time() - t0
 
 
     def sample(self, phi_max, sigma_r, sigma_w):
+        t0 = time.time()
         for i in range(0, self.Nx_samp):
             xx = pyro.sample("xx", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
             polvecxx = self.polynomial(xx)
@@ -480,7 +486,7 @@ class modelDeltaPolynomial:
             for j in range(0, self.nele):
                 self.y[self.Nx_counter, j] = yy[0, j]
             self.Nx_counter = self.Nx_counter + 1
-        self.removeSamples()
+        self.sample_time = self.sample_time + time.time() - t0
 
 
 

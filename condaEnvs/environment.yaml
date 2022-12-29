@@ -1,8 +1,8 @@
 name: Manthos_general
 channels:
-  - anaconda
   - pytorch
   - conda-forge
+  - anaconda
   - defaults
 dependencies:
   - _libgcc_mutex=0.1=main
@@ -13,8 +13,8 @@ dependencies:
   - brotli-bin=1.0.9=h166bdaf_7
   - brotlipy=0.7.0=py39h27cfd23_1003
   - bzip2=1.0.8=h7b6447c_0
-  - ca-certificates=2022.9.24=ha878542_0
-  - certifi=2022.9.24=pyhd8ed1ab_0
+  - ca-certificates=2022.10.11=h06a4308_0
+  - certifi=2022.12.7=py39h06a4308_0
   - cffi=1.15.1=py39h74dc2b5_0
   - charset-normalizer=2.0.4=pyhd3eb1b0_0
   - colorama=0.4.6=pyhd8ed1ab_0
@@ -59,6 +59,7 @@ dependencies:
   - libiconv=1.16=h7f8727e_2
   - libidn2=2.3.2=h7f8727e_0
   - libllvm10=10.0.1=he513fc3_3
+  - libllvm11=11.1.0=h9e868ea_6
   - libpng=1.6.37=hbc83047_0
   - libpq=12.9=h16c4e8d_3
   - libstdcxx-ng=11.2.0=h1234567_1
@@ -72,6 +73,7 @@ dependencies:
   - libxkbcommon=1.0.3=he3ba5ed_0
   - libxml2=2.9.14=h74e7548_0
   - libxslt=1.1.35=h4e12654_0
+  - llvmlite=0.39.1=py39he621ea3_0
   - lz4-c=1.9.3=h9c3ff4c_1
   - matplotlib=3.5.2=py39h06a4308_0
   - matplotlib-base=3.5.2=py39h700656a_0
@@ -84,11 +86,12 @@ dependencies:
   - nettle=3.7.3=hbbd107a_1
   - nspr=4.33=h295c915_0
   - nss=3.74=h0370c37_0
+  - numba=0.56.4=py39h417a72b_0
   - numexpr=2.8.3=py39h807cd23_0
   - numpy=1.23.3=py39h14f4228_0
   - numpy-base=1.23.3=py39h31eccc5_0
   - openh264=2.1.1=h4ff587b_0
-  - openssl=1.1.1q=h7f8727e_0
+  - openssl=1.1.1s=h7f8727e_0
   - opt_einsum=3.3.0=pyhd8ed1ab_1
   - packaging=21.3=pyhd3eb1b0_0
   - pandas=1.4.4=py39h6a678d5_0
@@ -120,6 +123,7 @@ dependencies:
   - sip=6.6.2=py39h6a678d5_0
   - six=1.16.0=pyhd3eb1b0_1
   - sqlite=3.39.3=h5082296_0
+  - tbb=2021.6.0=hdb19cb5_0
   - tk=8.6.12=h1ccaba5_0
   - toml=0.10.2=pyhd8ed1ab_0
   - torchaudio=0.12.1=py39_cu102
@@ -133,4 +137,4 @@ dependencies:
   - xz=5.2.6=h5eee18b_0
   - zlib=1.2.13=h5eee18b_0
   - zstd=1.5.2=ha4553b6_0
-prefix: /home/xatzman1999/.conda/envs/Manthos_general
+prefix: /home/xatzman1999/anaconda3/envs/Manthos_general

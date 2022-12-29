@@ -6,10 +6,11 @@
   <component name="ChangeListManager">
     <list default="true" id="ee5e69b1-ab1e-4126-a28c-98fd56f90163" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/condaEnvs/environment.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/condaEnvs/environment.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/input.py" beforeDir="false" afterPath="$PROJECT_DIR$/input.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/plotApproxVsTrueSol.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/plotApproxVsTrueSol.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/plotBasic.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/plotBasic.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/model/modelClass.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/modelClass.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/model/phiGradOpt.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/phiGradOpt.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -84,7 +85,9 @@
       <workItem from="1672149974845" duration="484000" />
       <workItem from="1672150709822" duration="7339000" />
       <workItem from="1672158890795" duration="2447000" />
-      <workItem from="1672161347980" duration="6533000" />
+      <workItem from="1672161347980" duration="13411000" />
+      <workItem from="1672235768357" duration="5478000" />
+      <workItem from="1672243531926" duration="4109000" />
     </task>
     <servers />
   </component>
@@ -110,11 +113,26 @@
           <line>157</line>
           <option name="timeStamp" value="4" />
         </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>202</line>
+          <option name="timeStamp" value="5" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>191</line>
+          <option name="timeStamp" value="8" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>184</line>
+          <option name="timeStamp" value="15" />
+        </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/VirtualObservables$main.coverage" NAME="main Coverage Results" MODIFIED="1672146269278" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/virtualObservables$main.coverage" NAME="main Coverage Results" MODIFIED="1672228807547" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/virtualObservables$main.coverage" NAME="main Coverage Results" MODIFIED="1672249664038" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
