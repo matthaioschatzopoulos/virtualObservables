@@ -272,23 +272,19 @@ class modelMvnDeb:
         self.removeSamples()
 
 
-class nnPol(PyroModule):
-    def __init__(self, nx, ny):
-        super().__init__()
-        self.linear = PyroModule[nn.Linear](nx, ny, bias=True)
-        self.linear.weight = PyroSample(dist.Normal(0., 3).expand([ny, nx]).to_event(2))
-        self.linear.bias = PyroSample(dist.Normal(0., 3).expand([ny]).to_event(1))
-        # self.linear.bias = None
+class Net(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(Net, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        w = self.linear.weight
-        b = self.linear.bias
-        y = self.linear(x).squeeze(-1)
-        return y
+        x = torch.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
 
-class modelDeltaNn(PyroModule):
+class modelDeltaNn:
     def __init__(self, pde, phi_max, poly_pow=None, allRes=True):
-        super().__init__()
         self.pde = pde
         self.allRes = allRes
         self.nele = pde.effective_nele
@@ -313,13 +309,6 @@ class modelDeltaNn(PyroModule):
         self.psiibias = self.psiiweight[:, 0]
         self.psii = [self.psiiweight, self.psiibias]
         self.temp_res = None
-        self.nn = nnPol(self.poly_pow, self.nele)
-        self.nx = self.poly_pow # nx: number of input features
-        self.ny = self.nele #ny: number of output features.
-        self.linear = PyroModule[nn.Linear](self.nx, self.ny, bias=True)
-        self.linear.weight = PyroSample(dist.Normal(0., 3).expand([self.ny, self.nx]).to_event(2))
-        self.linear.bias = PyroSample(dist.Normal(0., 3).expand([self.ny]).to_event(1))
-
 
 
     def removeSamples(self):
@@ -418,8 +407,10 @@ class modelDeltaPolynomial:
             self.x2 = torch.zeros(self.Nx_samp, 1)
             self.poly_pow = poly_pow
             if not self.allRes:
-                self.residuals = torch.tensor(0)
-                self.iter_plate = 1
+                #self.residuals = torch.tensor(0) # old options
+                #self.iter_plate = 1 # old options
+                self.residuals = torch.zeros(self.nele)
+                self.iter_plate = len(self.residuals)
             else:
                 self.residuals = torch.zeros(self.nele)
                 self.iter_plate = len(self.residuals)
@@ -450,7 +441,13 @@ class modelDeltaPolynomial:
         if not self.allRes:
             c = torch.matmul(b, torch.transpose(b, 0, 1))
             phi_max = torch.reshape(phi_max, (-1, 1))
-            rwmax2 = torch.matmul(torch.matmul(torch.transpose(phi_max, 0, 1), c), phi_max)
+            ### Original Implementation ###
+            #rwmax2 = torch.matmul(torch.matmul(torch.transpose(phi_max, 0, 1), c), phi_max)
+            #rwmax2 = torch.squeeze(rwmax2, 1)
+            #rwmax2 = torch.squeeze(rwmax2, 0)
+            ### Original Implementation ###
+
+            rwmax2 = torch.matmul(torch.transpose(phi_max, 0, 1), c)
             rwmax2 = torch.squeeze(rwmax2, 1)
             rwmax2 = torch.squeeze(rwmax2, 0)
             res = rwmax2
@@ -491,23 +488,23 @@ class modelDeltaPolynomial:
 
 
 class modelMvnPolynomial:
-    def __init__(self, pde, phi_max, poly_pow=None, allRes=True, stdInit = 6):
+    def __init__(self, pde, phi_max, poly_pow=None, allRes=True, stdInit = 3):
             self.pde = pde
             self.allRes = allRes
             self.nele = pde.effective_nele
             self.mean_px = pde.mean_px
             self.sigma_px = pde.sigma_px
             self.Nx_samp = pde.Nx_samp
-            self.x = torch.zeros(self.Nx_samp, 1)
-            self.y = torch.zeros(self.Nx_samp, self.nele)
-            self.Nx_samp = self.Nx_samp
+            self.Nx_samp_phi = self.Nx_samp
+            self.x = torch.zeros(self.Nx_samp_phi, 1)
+            self.y = torch.zeros(self.Nx_samp_phi, self.nele)
             self.Nx_counter = 0
             self.phi_max = phi_max
             self.x2 = torch.zeros(self.Nx_samp, 1)
             self.poly_pow = poly_pow
             if not self.allRes:
-                self.residuals = torch.tensor(0)
-                self.iter_plate = 1
+                self.residuals = torch.zeros(self.nele)
+                self.iter_plate = len(self.residuals)
             else:
                 self.residuals = torch.zeros(self.nele)
                 self.iter_plate = len(self.residuals)
@@ -515,10 +512,15 @@ class modelMvnPolynomial:
             self.Sigmaa_init = torch.eye(self.nele, self.nele) / 10 ** stdInit  # 10**-8 is good with sigma_r = 1
             self.Sigmaa_init = torch.diag(self.Sigmaa_init, 0)
             self.psii = [self.psi_init, self.Sigmaa_init]
-            self.temp_res = None
+            self.temp_res = []
+            self.full_temp_res = []
+            self.model_time = 0
+            self.guide_time = 0
+            self.sample_time = 0
 
     def removeSamples(self):
         self.Nx_counter = 0
+        self.temp_res = []
 
     def polynomial(self, x):
         y = torch.zeros(self.poly_pow + 1, 1)
@@ -527,16 +529,18 @@ class modelMvnPolynomial:
         return y
 
     def executeModel(self, phi_max, sigma_r, sigma_w):
+        t0 = time.time()
         x = pyro.sample("x", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
         y = pyro.sample("y", dist.MultivariateNormal(loc=torch.zeros((1, self.nele)),
                                                      covariance_matrix=sigma_w ** 2 * torch.eye(self.nele, self.nele)))
 
         b = self.pde.calcResKernel(x, y)
-        self.temp_res = b
+        self.full_temp_res.append(b.clone().detach())
+        self.temp_res.append(torch.linalg.norm(b.clone().detach()))
         if not self.allRes:
             c = torch.matmul(b, torch.transpose(b, 0, 1))
             phi_max = torch.reshape(phi_max, (-1, 1))
-            rwmax2 = torch.matmul(torch.matmul(torch.transpose(phi_max, 0, 1), c), phi_max)
+            rwmax2 = torch.matmul(torch.transpose(phi_max, 0, 1), c)
             rwmax2 = torch.squeeze(rwmax2, 1)
             rwmax2 = torch.squeeze(rwmax2, 0)
             res = rwmax2
@@ -547,9 +551,11 @@ class modelMvnPolynomial:
 
         with pyro.plate("data", self.iter_plate):
             residuals = pyro.sample("residuals", dist.Normal(res, sigma_r), obs=self.residuals)
+        self.model_time += time.time() - t0
 
 
     def executeGuide(self, phi_max, sigma_r, sigma_w):
+        t0 = time.time()
         x = pyro.sample("x", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
         mq = pyro.param('mq', self.psii[0])
 
@@ -561,9 +567,11 @@ class modelMvnPolynomial:
         Sigmam = torch.diag(Sigma)
         y = pyro.sample("y", dist.MultivariateNormal(loc=mq_final,
                                                     covariance_matrix=Sigmam))
+        self.guide_time = self.guide_time + time.time() - t0
 
     def sample(self, phi_max, sigma_r, sigma_w):
-        for i in range(0, self.Nx_samp):
+        t0 = time.time()
+        for i in range(0, self.Nx_samp_phi):
             xx = pyro.sample("xx", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
             polvecxx = self.polynomial(xx)
             mqq = torch.matmul(self.psii[0], polvecxx)
@@ -572,9 +580,10 @@ class modelMvnPolynomial:
             yy = pyro.sample("yy", dist.MultivariateNormal(loc=mqq,
                                                            covariance_matrix=torch.diag(Sigmaa)))
 
-            self.x[self.Nx_counter, 0] = xx
+            self.x[self.Nx_counter, 0] = xx.clone().detach()
             for j in range(0, self.nele):
-                self.y[self.Nx_counter, j] = yy[0, j]
+                self.y[self.Nx_counter, j] = yy[0, j].clone().detach()
             self.Nx_counter = self.Nx_counter + 1
+        self.sample_time = self.sample_time + time.time() - t0
         self.removeSamples()
 

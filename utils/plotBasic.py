@@ -69,7 +69,7 @@ def smooth(y, box_pts):
     return y_smooth
 
 def plotSimplePsi_Phi(Iter_outer, nele, psi_history, psi, phi_max_history, t, residual,grads,
-                      gradsNorm, Iter_svi, display_plots):
+                      gradsNorm, Iter_svi, display_plots, sigma_history):
 
     plt.figure(1)
     for i in range(0, nele):
@@ -151,7 +151,7 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, psi, phi_max_history, t, re
     if display_plots:
         plt.show()
     for i in range(0, len(grads[0][0,:])):
-        plotGradDeg(grads, i, smoothing=100, display_plots=display_plots)
+        plotGradDeg(grads, i, smoothing=1000, display_plots=display_plots)
 
     ### Plot of parameter profile VS Taylor parameter profile ###
     psi = psi.cpu()
@@ -167,6 +167,23 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, psi, phi_max_history, t, re
     if not os.path.exists('./results/taylorParam/'):
         os.makedirs('./results/taylorParam/')
     plt.savefig("./results/taylorParam/taylorParam.png", dpi=300, bbox_inches='tight')
+    if display_plots:
+        plt.show()
+
+    plt.figure(7)
+    for i in range(0, nele):
+        plt.plot(np.linspace(1, Iter_outer, Iter_outer + 1), sigma_history[i, :], '-r')
+    plt.grid(True)
+    # plt.title("Convergence \n" + "\n".join(wrap(title_id)))
+    plt.title("Convergence of parameters $\sigma_{0i}$")
+    plt.xlabel("Number of external iterations")
+    plt.ylabel("$\sigma_0$ for each node i")
+    plt.yscale('log')
+    plt.legend(["Convergence of $\sigma_i$" + " Time:" + "{:.2f}".format((time.time() - t) / 60) + " min", ])
+    if not os.path.exists('./results/conv_sigma/'):
+        os.makedirs('./results/conv_sigma/')
+    plt.savefig("./results/conv_sigma/sigma", dpi=300, bbox_inches='tight')
+    # plt.savefig("./psi" + label_id, dpi=300, bbox_inches='tight')
     if display_plots:
         plt.show()
 def plotSimplePsi_Phi_Pol(Iter_outer, nele, psi_history, label_id, phi_max_history, t, residual,grads,

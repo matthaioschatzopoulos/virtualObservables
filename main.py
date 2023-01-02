@@ -31,11 +31,12 @@ smoke_test = ('CI' in os.environ)
 from torch.distributions import constraints
 from pyro.infer import Predictive
 import time
+import os
 from textwrap import wrap
 
 ### Importing Manual Modules ###
 from utils.powerIteration import powerIteration
-from model.phiGradOpt import residualCalc, phiEigOpt, phiGradOptMvnNx
+from model.phiGradOpt import phiOptimizer
 from utils.plotBasic import plotSimplePsi_Phi, plotPhiVsSpace, plotSimplePsi_Phi_Pol
 from model.modelClass import modelMvn, modelDelta, modelMvnDeb, modelMvnPolynomial, modelDeltaAllres
 from model.modelClass import modelDeltaPolynomial, modelDeltaNn
@@ -63,8 +64,10 @@ else:
 device = torch.device("cuda:0" if use_cuda else "cpu")
 ### Device Selection ###
 
+### Storing specific input in the ./results/
 print(device)
 
+os.system('cp ./input.py ./results/inputParams.txt')
 
 ### Definition and Form of the PDE ###
 pde = pdeForm(nele, mean_px, sigma_px, Nx_samp, lBoundDir=lBoundDir, rBoundDir=rBoundDir,
@@ -88,6 +91,7 @@ for iii in range(0, 1):
 
 
     sigma_history = np.zeros((nele, 1))
+    psi_history = torch.reshape(torch.zeros(nele, poly_pow + 1), (-1,1))
     phi_max_history = np.zeros((nele, 1))
     phi_max = torch.rand((nele, 1), requires_grad=True)
     phi_max = phi_max / torch.linalg.norm(phi_max)
@@ -97,16 +101,18 @@ for iii in range(0, 1):
     grads = []
     gradsNorm = []
 
-    residualcalc = residualCalc(mode=mode, Nx_samp=Nx_samp, pde=pde, poly_pow=poly_pow)
-    psi = residualcalc.psi_init
-    psi_history = residualcalc.psi_history_init
+    phiOptim = phiOptimizer(pde, poly_pow=poly_pow, eigRelax=eigRelax, powIterTol=powerIterTol)
     residual_history = []
 
-    samples = modelDeltaPolynomial(pde, phi_max=phi_max, poly_pow=poly_pow, allRes=True)
+
+    samples = modelMvnPolynomial(pde, phi_max=phi_max, poly_pow=poly_pow, allRes=allRes)
     model = samples.executeModel
     guide = samples.executeGuide
     plot_phispace = plotPhiVsSpace(torch.squeeze(phi_max, 1), nele, Iter_total, display_plots, row=7, col=5)
     kkk = 0
+
+
+
     for kk in range(0, Iter_outer):
         hist_elbo = []
         pyro.clear_param_store()
@@ -118,14 +124,19 @@ for iii in range(0, 1):
 
 
         num_iters = Iter_svi if not smoke_test else 2
-        samples.sample(phi_max, torch.tensor(sigma_r), torch.tensor(sigma_w))
+
 
         ### Phi Gradient Update ###
 
         ### Below is the currently corrent grad optimizer ###
         #phi_max = phiGradOptMvnNx(phi_max, lr_for_phi, nele, mean_px, sigma_px, Nx_samp, psi, A, u,
         #                            samples.x, samples.y, Iter_grad, residualcalc)
-        phi_max = phiEigOpt(phi_max, samples.x, samples.y, power_iter_tol, residualcalc, eigRelax)
+
+        samples.sample(phi_max, torch.tensor(sigma_r), torch.tensor(sigma_w))
+        phiOptim.x = samples.x
+        phiOptim.y = samples.y
+        # phi_max = phiOptim.phiEigOpt()
+        #phi_max = phiOptim.phiGradOptMvnNx()
         #phi_max = torch.ones(nele)
         svi_time = 0
         rest_time = 0
@@ -165,13 +176,15 @@ for iii in range(0, 1):
             t5 = time.time()
 
             psi = torch.from_numpy(val[0]).to(device=device)
-
+            phiOptim.full_res_temp = samples.full_temp_res
             t6 = time.time()
 
             NN = False
             if len(val) == 2:
                 Sigmaa = torch.from_numpy(val[1])
                 samples.psii = [psi, Sigmaa]
+                sigma_history = np.concatenate((sigma_history, np.reshape(val[1], (-1, 1))), axis=1)
+
             elif len(val) == 1:
                 Sigmaa = torch.zeros(nele)
                 samples.psii = psi
@@ -195,7 +208,7 @@ for iii in range(0, 1):
             psi_history = np.concatenate((psi_history, np.reshape(np.transpose(val[0]), (-1, 1))),
                                          axis=1)  ## For Polynomials
             t10 = time.time()
-            # sigma_history = np.concatenate((sigma_history, np.reshape(val[1],(-1, 1))), axis=1)
+
             phi_max_history = np.concatenate((phi_max_history, torch.reshape(phi_max, (-1, 1)).detach().cpu().numpy()),
                                              axis=1)
             sigma_r = sigma_r * sigma_r_mult
@@ -242,7 +255,7 @@ print("Sample time: ", samples.sample_time)
 #plotModelDists(model, guide, phi_max, A, u, sigma_r, sigma_w, psi, nele)
 
 plotSimplePsi_Phi(Iter_total, nele, psi_history[0:nele,:], psi, phi_max_history, t,
-                  residual_history, grads, gradsNorm, Iter_svi, display_plots) # instead of grads it has only gradsNorm
+                  residual_history, grads, gradsNorm, Iter_svi, display_plots, sigma_history) # instead of grads it has only gradsNorm
 
 plot_phispace.show()
 
@@ -255,5 +268,6 @@ test = 1
 #for i in range(0, len(grads)):
 #    print("Iteration",i, " : ", grads[i])
 print(psi)
+
 
 
