@@ -133,7 +133,7 @@ class phiOptimizer:
             #C = torch.matmul(torch.reshape(self.full_res_temp[jj], (-1, 1)),
             #                 torch.reshape(self.full_res_temp[jj], (1, -1)))/self.Nx_samp ### Without the **2 it could behave even better
             b = self.pde.calcResKernel(self.x[jj], self.y[jj,:])
-            C = C + torch.matmul( torch.reshape(b, (1, -1)), torch.reshape(b, (-1, 1)))/self.Nx_samp_phi
+            C = C + torch.matmul( torch.reshape(b, (-1, 1)), torch.reshape(b, (1, -1)))/self.Nx_samp_phi
         #C = calcResidual("Polynomial", sample_x, sample_y, Nx_samp, nele, u, A, poly_pow=3)
         res = powerIteration(C, self.powIterTol)
         #print("Res", C)

@@ -500,7 +500,6 @@ class modelMvnPolynomial:
             self.y = torch.zeros(self.Nx_samp_phi, self.nele)
             self.Nx_counter = 0
             self.phi_max = phi_max
-            self.x2 = torch.zeros(self.Nx_samp, 1)
             self.poly_pow = poly_pow
             if not self.allRes:
                 self.residuals = torch.zeros(self.nele)
@@ -509,6 +508,12 @@ class modelMvnPolynomial:
                 self.residuals = torch.zeros(self.nele)
                 self.iter_plate = len(self.residuals)
             self.psi_init = torch.rand(self.nele, poly_pow + 1) * 0.01  # Initialization of psi
+            """
+            self.psi_init= torch.tensor([[ 0.0822, -0.0846,  0.0489],
+            [ 0.1196, -0.1376,  0.0576],
+            [ 0.1226, -0.1307,  0.0732],
+            [ 0.0778, -0.0930,  0.0460]])
+            """
             self.Sigmaa_init = torch.eye(self.nele, self.nele) / 10 ** stdInit  # 10**-8 is good with sigma_r = 1
             self.Sigmaa_init = torch.diag(self.Sigmaa_init, 0)
             self.psii = [self.psi_init, self.Sigmaa_init]

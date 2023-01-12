@@ -23,6 +23,7 @@ from pyro.nn import PyroSample
 from torch import nn
 from pyro.nn import PyroModule
 import pyro.optim as optim
+import fenics as df
 import os
 import logging
 from torch.distributions import constraints
@@ -41,7 +42,7 @@ from utils.plotBasic import plotSimplePsi_Phi, plotPhiVsSpace, plotSimplePsi_Phi
 from model.modelClass import modelMvn, modelDelta, modelMvnDeb, modelMvnPolynomial, modelDeltaAllres
 from model.modelClass import modelDeltaPolynomial, modelDeltaNn
 from utils.plotApproxVsTrueSol import plotApproxVsSol, plotApproxVsTrueSol
-from model.pdeForm import pdeForm
+from model.pdeForm import pdeForm, pdeFenics
 from input import *
 
 ################ Testing weighting residuals ################
@@ -70,7 +71,7 @@ print(device)
 os.system('cp ./input.py ./results/inputParams.txt')
 
 ### Definition and Form of the PDE ###
-pde = pdeForm(nele, mean_px, sigma_px, Nx_samp, lBoundDir=lBoundDir, rBoundDir=rBoundDir,
+pde = pdeFenics(nele, mean_px, sigma_px, Nx_samp, lBoundDir=lBoundDir, rBoundDir=rBoundDir,
               lBoundNeu=lBoundNeu, rBoundNeu=rBoundNeu, rhs=rhs)
 A = pde.A
 u = pde.u
@@ -79,6 +80,8 @@ real_nele = pde.nele
 condition_number = torch.linalg.cond(A)
 
 solll = torch.matmul(torch.linalg.inv(A), pde.systemRhs)
+print(A)
+print(pde.systemRhs)
 analsol = torch.linspace(0, 1, nele+1) **2/2
 analsol = torch.linspace(0, 1, nele+1)**2/2 + torch.linspace(0, 1, nele+1)/2+1
 analsol2 = torch.linspace(0, 1, real_nele+1)**2/2 + torch.linspace(0, 1, real_nele+1)/2+1
@@ -87,6 +90,8 @@ bbb = torch.matmul(A, torch.reshape(analsol[1:], (-1, 1)))
 ####### Initialization of Parameters #######
 
 for iii in range(0, 1):
+
+
     tt = time.time()
 
 
@@ -114,6 +119,35 @@ for iii in range(0, 1):
 
 
     for kk in range(0, Iter_outer):
+
+        if progress_perc > phase1:
+            Nx_samp = 10
+            pde.Nx_samp = Nx_samp
+            samples.Nx_samp_phi = Nx_samp
+            samples.x = torch.zeros(samples.Nx_samp_phi, 1)
+            samples.y = torch.zeros(samples.Nx_samp_phi, samples.nele)
+            phiOptim.Nx_samp = pde.Nx_samp
+            phiOptim.Nx_samp_phi = phiOptim.Nx_samp
+            phiOptim.x = torch.zeros(phiOptim.Nx_samp_phi, 1)
+            phiOptim.y = torch.zeros(phiOptim.Nx_samp_phi, phiOptim.nele)
+            phiOptim.Nx_samp = phiOptim.Nx_samp
+            phiOptim.temp_res = torch.rand(phiOptim.Nx_samp).tolist()
+            phiOptim.full_res_temp = torch.rand(phiOptim.Nx_samp).tolist()
+
+            if progress_perc > phase2:
+                Nx_samp = 50
+                pde.Nx_samp = Nx_samp
+                samples.Nx_samp_phi = Nx_samp
+                samples.x = torch.zeros(samples.Nx_samp_phi, 1)
+                samples.y = torch.zeros(samples.Nx_samp_phi, samples.nele)
+                phiOptim.Nx_samp = pde.Nx_samp
+                phiOptim.Nx_samp_phi = phiOptim.Nx_samp
+                phiOptim.x = torch.zeros(phiOptim.Nx_samp_phi, 1)
+                phiOptim.y = torch.zeros(phiOptim.Nx_samp_phi, phiOptim.nele)
+                phiOptim.Nx_samp = phiOptim.Nx_samp
+                phiOptim.temp_res = torch.rand(phiOptim.Nx_samp).tolist()
+                phiOptim.full_res_temp = torch.rand(phiOptim.Nx_samp).tolist()
+
         hist_elbo = []
         pyro.clear_param_store()
 
@@ -135,12 +169,16 @@ for iii in range(0, 1):
         samples.sample(phi_max, torch.tensor(sigma_r), torch.tensor(sigma_w))
         phiOptim.x = samples.x
         phiOptim.y = samples.y
-        # phi_max = phiOptim.phiEigOpt()
-        #phi_max = phiOptim.phiGradOptMvnNx()
+        #phi_max = phiOptim.phiEigOpt()
+        phi_max = phiOptim.phiGradOptMvnNx()
         #phi_max = torch.ones(nele)
         svi_time = 0
         rest_time = 0
         tsum = 0
+
+
+
+
         for i in range(num_iters):
             samples.removeSamples()
             kkk = kkk+1
@@ -225,6 +263,8 @@ for iii in range(0, 1):
                 ### Printing Progress ###
 
                 progress_perc = progress_perc + 1
+
+
                 #print("Iteration: ", kk,"/",Iter_outer, " ELBO", elbo, "sigma_r", sigma_r)
                 print("Gradient:",current_grad)
                 print("Parameters psi:",psi)
