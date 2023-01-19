@@ -68,12 +68,13 @@ def smooth(y, box_pts):
     y_smooth = np.convolve(y, box, mode='same')
     return y_smooth
 
-def plotSimplePsi_Phi(Iter_outer, nele, psi_history, psi, phi_max_history, t, residual,grads,
+def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_history, t, residual,grads,
                       gradsNorm, Iter_svi, display_plots, sigma_history):
 
     plt.figure(1)
-    for i in range(0, nele):
-        plt.plot(np.linspace(1, Iter_outer, Iter_outer+1), psi_history[i, :], '-r')
+    for i in range(0, poly_pow):
+        #plt.plot(np.linspace(1, Iter_outer, Iter_outer+1), psi_history[i, :], '-r') # correct
+        plt.plot(np.linspace(1, Iter_outer, Iter_outer+1), psi_history[i, :], '-r') # for nele=2
     plt.grid(True)
     #plt.title("Convergence \n" + "\n".join(wrap(title_id)))
     plt.title("Convergence of parameters $\psi_{0i}$")
@@ -106,7 +107,7 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, psi, phi_max_history, t, re
 
     plt.figure(3)
     plt.plot(np.linspace(1, Iter_outer, Iter_outer), np.asarray(residual), '-g')
-    plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 100), '-r')
+    plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 10), '-r')
     plt.grid(True)
     plt.yscale('log')
     #plt.title("Residual convergence  \n" + "\n".join(wrap(title_id)))
@@ -150,8 +151,8 @@ def plotSimplePsi_Phi(Iter_outer, nele, psi_history, psi, phi_max_history, t, re
     # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
     if display_plots:
         plt.show()
-    for i in range(0, len(grads[0][0,:])):
-        plotGradDeg(grads, i, smoothing=1000, display_plots=display_plots)
+    #for i in range(0, len(grads[0][0,:])):
+    #    plotGradDeg(grads, i, smoothing=1000, display_plots=display_plots)
 
     ### Plot of parameter profile VS Taylor parameter profile ###
     psi = psi.cpu()

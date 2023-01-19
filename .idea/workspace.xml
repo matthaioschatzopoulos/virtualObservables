@@ -5,15 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ee5e69b1-ab1e-4126-a28c-98fd56f90163" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/VirtualObservables.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/VirtualObservables.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/input.py" beforeDir="false" afterPath="$PROJECT_DIR$/input.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/model/modelClass.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/modelClass.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model/pdeForm.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/pdeForm.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/model/phiGradOpt.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/phiGradOpt.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/results/inputParams.txt" beforeDir="false" afterPath="$PROJECT_DIR$/results/inputParams.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/plotApproxVsTrueSol.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/plotApproxVsTrueSol.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/plotBasic.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/plotBasic.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -37,7 +36,7 @@
     &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/xatzman1999/Documents/codes/Virtual_Observables_proper/virtualObservables&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/xatzman1999/Documents/codes/SVI_on_linear_regression_5_9_22/test_pycharm/Monte_carlo_correct.py&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -112,6 +111,15 @@
       <workItem from="1673449714072" duration="1327000" />
       <workItem from="1673451102971" duration="4918000" />
       <workItem from="1673529593173" duration="1506000" />
+      <workItem from="1673629615770" duration="5156000" />
+      <workItem from="1673860727361" duration="3467000" />
+      <workItem from="1673969265369" duration="5138000" />
+      <workItem from="1673974415097" duration="3502000" />
+      <workItem from="1673977946508" duration="1565000" />
+      <workItem from="1674042464200" duration="7518000" />
+      <workItem from="1674049992598" duration="8447000" />
+      <workItem from="1674058452721" duration="6225000" />
+      <workItem from="1674065381820" duration="885000" />
     </task>
     <servers />
   </component>
@@ -134,18 +142,13 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/utils/plotBasic.py</url>
-          <line>157</line>
+          <line>158</line>
           <option name="timeStamp" value="4" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/model/modelClass.py</url>
           <line>439</line>
           <option name="timeStamp" value="16" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/model/phiGradOpt.py</url>
-          <line>134</line>
-          <option name="timeStamp" value="29" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tests/__init__.py</url>
@@ -158,30 +161,58 @@
           <option name="timeStamp" value="40" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/main.py</url>
-          <line>84</line>
-          <option name="timeStamp" value="42" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/model/test_fenics.py</url>
           <line>82</line>
           <option name="timeStamp" value="43" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/model/pdeForm.py</url>
-          <line>124</line>
-          <option name="timeStamp" value="44" />
+          <url>file://$PROJECT_DIR$/../../SVI_on_linear_regression_5_9_22/test_pycharm/closed_form_real.py</url>
+          <line>81</line>
+          <option name="timeStamp" value="56" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/../../SVI_on_linear_regression_5_9_22/test_pycharm/closed_form_real.py</url>
+          <line>78</line>
+          <option name="timeStamp" value="57" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tests/analytical_solution.py</url>
+          <line>32</line>
+          <option name="timeStamp" value="59" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>326</line>
+          <option name="timeStamp" value="72" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/model/phiGradOpt.py</url>
+          <line>143</line>
+          <option name="timeStamp" value="86" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/model/modelClass.py</url>
+          <line>590</line>
+          <option name="timeStamp" value="99" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/model/modelClass.py</url>
+          <line>584</line>
+          <option name="timeStamp" value="100" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/virtualObservables$analytical_solution.coverage" NAME="analytical_solution Coverage Results" MODIFIED="1673863425124" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
+    <SUITE FILE_PATH="coverage/virtualObservables$Monte_carlo_correct.coverage" NAME="Monte_carlo_correct Coverage Results" MODIFIED="1673863478533" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/../../SVI_on_linear_regression_5_9_22/test_pycharm" />
     <SUITE FILE_PATH="coverage/virtualObservables$__init__.coverage" NAME="__init__ Coverage Results" MODIFIED="1672680009926" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
     <SUITE FILE_PATH="coverage/virtualObservables$fenics.coverage" NAME="fenics Coverage Results" MODIFIED="1673447783172" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/model" />
     <SUITE FILE_PATH="coverage/VirtualObservables$main.coverage" NAME="main Coverage Results" MODIFIED="1672146269278" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/virtualObservables$closed_form_real.coverage" NAME="closed_form_real Coverage Results" MODIFIED="1673863148532" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/../../SVI_on_linear_regression_5_9_22/test_pycharm" />
     <SUITE FILE_PATH="coverage/virtualObservables$pdeForm.coverage" NAME="pdeForm Coverage Results" MODIFIED="1673455624261" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/model" />
-    <SUITE FILE_PATH="coverage/virtualObservables$input.coverage" NAME="input Coverage Results" MODIFIED="1673445524965" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/virtualObservables$main.coverage" NAME="main Coverage Results" MODIFIED="1673530388925" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/virtualObservables$input.coverage" NAME="input Coverage Results" MODIFIED="1673975364986" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/virtualObservables$main.coverage" NAME="main Coverage Results" MODIFIED="1674066241136" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/virtualObservables$test_fenics.coverage" NAME="test_fenics Coverage Results" MODIFIED="1673454306014" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/model" />
   </component>
 </project>

@@ -50,7 +50,8 @@ class plotApproxVsTrueSol:
         self.fig.set_figwidth(15)
         self.fig.subplots_adjust(hspace=0.4, wspace=0.3)
         #self.xp = np.linspace(-1, 1, 101)
-        self.xp = np.linspace(-3*sigma_px, 3*sigma_px, 101)
+        self.xp = np.linspace(-1 * sigma_px, 1 * sigma_px, 101)
+        #self.xp = np.linspace(-3*sigma_px, 3*sigma_px, 101)
         counter =0
         self.leg_tuple = ("True Solution",)
         for j in range(0, self.nele // math.ceil(nelsq) + 1):
@@ -100,8 +101,9 @@ class plotApproxVsTrueSol:
 
 
 class plotApproxVsSol:
-    def __init__(self, psi, poly_pow, pde, sigma_px, iterat, display_plots):
+    def __init__(self, psi, poly_pow, pde, sigma_px, iterat, display_plots, model):
         self.iterat = iterat
+        self.data_x = model.data_x.clone().detach().numpy()
         self.pde = pde
         self.psi = psi
         self.display_plots = display_plots
@@ -111,7 +113,7 @@ class plotApproxVsSol:
         self.conf_inter = 2
         self.conf_inter_px = 2
         nelsq = np.sqrt(self.nele)
-        self.fig, self.ax = plt.subplots(self.nele // math.ceil(nelsq) + 1, math.ceil(nelsq),num=18)
+        self.fig, self.ax = plt.subplots(self.nele // math.ceil(nelsq) + 1, math.ceil(nelsq)+1,num=18) ### +1 is added for dimx=1
         #self.fig.set_figheight(30)
         #self.fig.set_figwidth(50)
         #self.fig.subplots_adjust(hspace=0.5, wspace=0.35)
@@ -131,6 +133,8 @@ class plotApproxVsSol:
             for k in range(0, math.ceil(nelsq)):
                 s = 1/self.tot_nele*(counter+1)
                 self.ax[j, k].plot(self.xp, analsol(s,self.xp), linewidth = 5)
+                y = analsol(s, self.data_x)
+                self.ax[j, k].scatter(self.data_x, analsol(s, self.data_x),c='r', marker='o',s=100)
                 self.ax[j, k].grid(True)
                 self.ax[j, k].set_title("Solution for node " + str(counter+1))
                 self.ax[j, k].set_xlabel("Number of Iterations")
@@ -188,6 +192,7 @@ class plotApproxVsSol:
                 self.ax[jj, kk].plot(self.xp, yp - self.conf_inter * sigma, '--k')
                 # self.ax[jj, kk].legend(("Test Solution"+str(j),))
                 self.ax[jj, kk].legend(self.leg_tuple)
+                self.ax[jj, kk].set_yscale('log')
                 j = j + 1
                 if j == self.nele:
                     break

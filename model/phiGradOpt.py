@@ -34,9 +34,11 @@ import time
 from textwrap import wrap
 
 class phiOptimizer:
-    def __init__(self, pde, poly_pow=None, eigRelax=None, powIterTol=None):
+    def __init__(self, pde, poly_pow=None, eigRelax=None, powIterTol=None, Nx_samp_phi=None, runTests=False):
         self.pde = pde
+        self.model = None
         self.eigRelax = eigRelax
+        self.Nx_samp_phiOpt = Nx_samp_phi # 100 is usually a good value
         self.gradLr = 0.1
         self.epoch = 100
         self.powIterTol = powIterTol
@@ -56,6 +58,8 @@ class phiOptimizer:
         self.full_res_temp = torch.rand(self.Nx_samp).tolist()
         for i in range(0, len(self.full_res_temp)):
             self.full_res_temp[i] = torch.rand(self.nele)*0.1
+        # First entry is True if the test has been passed the second is true if the test has been conducted
+        self.testEigOpt = [True, runTests, 2] # 1-->Passed Maximization test, 2--> runTests, 3-->Passed MC test
 
     def phiGradOptMvnNx(self): # Correct 3/11/22
         phi_max = torch.reshape(self.phi_max, (-1, 1))
@@ -109,6 +113,36 @@ class phiOptimizer:
         self.phi_max = phi_max
         return phi_max.clone().detach()
 
+    def calcC(self, Nx):
+        C = torch.tensor(0)
+        x, y = self.model.sampleResExp(Nx)
+        for jj in range(0, x.size(dim=0)):
+            b = self.pde.calcResKernel(x[jj], y[jj, :])
+            C = C + torch.matmul(torch.reshape(b, (-1, 1)), torch.reshape(b, (1, -1))) / x.size(dim=0)
+        return C
+
+    def calcSqRes(self, phi, C):
+        sqRes = torch.matmul(torch.matmul(torch.reshape(phi, (1, -1)), C),
+                     torch.reshape(phi, (-1, 1))).item()
+        return sqRes
+    def phiEigOptTest(self, phiOld, phiNew, phiUpd, C):
+        ### MCtest ###
+        if self.testEigOpt[2] == 2:
+            res = torch.zeros(3)
+            for i in range(0, 3):
+                res[i] = self.calcSqRes(phiOld, self.calcC(int(10**(i+2))))
+
+            if abs(res[2]-res[1])/abs(res[2]) < 0.1:
+                self.testEigOpt[2] = True
+        ### Maximazation of SqResidual test ###
+        sqResOld = self.calcSqRes(phiOld, C)
+        sqResNew = self.calcSqRes(phiNew, C)
+        sqResUpd = self.calcSqRes(phiUpd, C)
+
+        #Old test: if sqResNew < sqResOld or sqResUpd < sqResOld:
+        if sqResNew < sqResOld:
+            self.testEigOpt[0] = False
+        return
 
     def phiEigOpt(self): ## Correct-3/11/22
         """
@@ -120,40 +154,41 @@ class phiOptimizer:
         :param eigRelax:
         :return:
         """
-        resid2 = 0
-        C = 0
+
+
         ### For Relaxation ###
         if len(self.phi_max.size()) > 1:
             phi_max_old = torch.reshape(self.phi_max, (-1, )).clone().detach() ### If you don't detach it everything will become slower
+            phi_max_old = phi_max_old/torch.linalg.norm(phi_max_old)
         else:
-            phi_max_old = self.phi_max
+            phi_max_old = self.phi_max.clone().detach()
+            phi_max_old = phi_max_old / torch.linalg.norm(phi_max_old)
+
         ### For Relaxation ###
         phi_max = torch.reshape(self.phi_max, (-1, 1))
-        for jj in range(0, self.Nx_samp_phi):
-            #C = torch.matmul(torch.reshape(self.full_res_temp[jj], (-1, 1)),
-            #                 torch.reshape(self.full_res_temp[jj], (1, -1)))/self.Nx_samp ### Without the **2 it could behave even better
-            b = self.pde.calcResKernel(self.x[jj], self.y[jj,:])
-            C = C + torch.matmul( torch.reshape(b, (-1, 1)), torch.reshape(b, (1, -1)))/self.Nx_samp_phi
-        #C = calcResidual("Polynomial", sample_x, sample_y, Nx_samp, nele, u, A, poly_pow=3)
+
+        ### Calculation of Matrix C ###
+        C = self.calcC(self.Nx_samp_phiOpt)
+
+        ### Solving Eigenvector Problem ###
         res = powerIteration(C, self.powIterTol)
-        #print("Res", C)
-        ### In case that Nx_samp = 1, then b = sqrt(lambda)*phi, however this doesn't help because we again need to find lambda
-        #res2 = np.linalg.eig(C)
-        #tess2 = res2[1][:,0]
-        #res3 = res2[1][:,0]*np.sqrt(res2[0][0])
-        ### In case that Nx_samp = 1, then b = sqrt(lambda)*phi, however this doesn't help because we again need to find lambda
         phi_max = res[0]
         phi_max = torch.squeeze(phi_max, 1)
-        ### For Relaxation ###
+
+        ### Relaxation ###
         if self.eigRelax is not None:
             phi_max_return = phi_max_old + self.eigRelax*(phi_max - phi_max_old)
             #phi_max_return = torch.add(phi_max_old, torch.mul(torch.add(phi_max, torch.mul(phi_max_old,-1)), eigRelax))
             phi_max_return = phi_max_return / torch.linalg.norm(phi_max_return)
         else:
             phi_max_return = phi_max
+
+        ### Performing Tests ###
+        if self.testEigOpt[1] == True:
+            self.phiEigOptTest(phi_max_old.clone().detach(), phi_max.clone().detach(),
+                               phi_max_return.clone().detach(), C.clone().detach())
+
         self.phi_max = phi_max_return
-        #print(self.phi_max)
-        ### For Relaxation ###
         return phi_max_return
 
 

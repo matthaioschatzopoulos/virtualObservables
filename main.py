@@ -71,7 +71,7 @@ print(device)
 os.system('cp ./input.py ./results/inputParams.txt')
 
 ### Definition and Form of the PDE ###
-pde = pdeFenics(nele, mean_px, sigma_px, Nx_samp, lBoundDir=lBoundDir, rBoundDir=rBoundDir,
+pde = pdeForm(nele, mean_px, sigma_px, Nx_samp, lBoundDir=lBoundDir, rBoundDir=rBoundDir,
               lBoundNeu=lBoundNeu, rBoundNeu=rBoundNeu, rhs=rhs)
 A = pde.A
 u = pde.u
@@ -106,11 +106,13 @@ for iii in range(0, 1):
     grads = []
     gradsNorm = []
 
-    phiOptim = phiOptimizer(pde, poly_pow=poly_pow, eigRelax=eigRelax, powIterTol=powerIterTol)
+    phiOptim = phiOptimizer(pde, poly_pow=poly_pow, eigRelax=eigRelax, powIterTol=powerIterTol,
+                            Nx_samp_phi=Nx_samp_phiOpt, runTests=runTests)
     residual_history = []
 
 
     samples = modelMvnPolynomial(pde, phi_max=phi_max, poly_pow=poly_pow, allRes=allRes)
+    phiOptim.model = samples
     model = samples.executeModel
     guide = samples.executeGuide
     plot_phispace = plotPhiVsSpace(torch.squeeze(phi_max, 1), nele, Iter_total, display_plots, row=7, col=5)
@@ -119,7 +121,7 @@ for iii in range(0, 1):
 
 
     for kk in range(0, Iter_outer):
-
+        """
         if progress_perc > phase1:
             Nx_samp = 10
             pde.Nx_samp = Nx_samp
@@ -147,7 +149,7 @@ for iii in range(0, 1):
                 phiOptim.Nx_samp = phiOptim.Nx_samp
                 phiOptim.temp_res = torch.rand(phiOptim.Nx_samp).tolist()
                 phiOptim.full_res_temp = torch.rand(phiOptim.Nx_samp).tolist()
-
+        """
         hist_elbo = []
         pyro.clear_param_store()
 
@@ -166,11 +168,18 @@ for iii in range(0, 1):
         #phi_max = phiGradOptMvnNx(phi_max, lr_for_phi, nele, mean_px, sigma_px, Nx_samp, psi, A, u,
         #                            samples.x, samples.y, Iter_grad, residualcalc)
 
-        samples.sample(phi_max, torch.tensor(sigma_r), torch.tensor(sigma_w))
-        phiOptim.x = samples.x
-        phiOptim.y = samples.y
-        #phi_max = phiOptim.phiEigOpt()
-        phi_max = phiOptim.phiGradOptMvnNx()
+        #samples.sample(phi_max, torch.tensor(sigma_r), torch.tensor(sigma_w))
+        """
+        xxxx, yyyy = samples.sampleResExp(100)
+        bbbb = 0.0
+        for jj in range(0, xxxx.size(dim=0)):
+            bbbbb = pde.calcResKernel(xxxx[jj], yyyy[jj, :])
+            bbbb = bbbb + bbbbb/ xxxx.size(dim=0)
+        current_residual = torch.linalg.norm(bbbb)
+        """
+
+        phi_max = phiOptim.phiEigOpt()
+        #phi_max = phiOptim.phiGradOptMvnNx()
         #phi_max = torch.ones(nele)
         svi_time = 0
         rest_time = 0
@@ -231,16 +240,21 @@ for iii in range(0, 1):
                 samples.psii = [psi, torch.from_numpy(val[1])]
 
             t7 = time.time()
+
+
             current_residual = 0
-            for i in range(0, Nx_samp):
-                current_residual = current_residual + samples.temp_res[i].item()
-                #current_residual = current_residual + 1
+            for jk in range(0, Nx_samp):
+                current_residual = current_residual + samples.temp_res[jk].item()
             current_residual = current_residual/Nx_samp
-            #current_residual =torch.mean(torch.stack(samples.temp_res)).clone().detach().cpu().numpy()
-            ### Updating parameters of the model/guide ###
+
             t8 = time.time()
             residual_history.append(current_residual)
             t9 = time.time()
+
+
+            #current_residual =torch.mean(torch.stack(samples.temp_res)).clone().detach().cpu().numpy()
+            ### Updating parameters of the model/guide ###
+
             ### Recording History & Applying Multipliers to hyperparameters
             # psi_history = np.concatenate((psi_history, np.transpose(val[0])), axis=1) ## Simple case
             psi_history = np.concatenate((psi_history, np.reshape(np.transpose(val[0]), (-1, 1))),
@@ -278,7 +292,7 @@ for iii in range(0, 1):
 
 
     if iii == 0:
-        plot_appSol = plotApproxVsSol(psi, poly_pow, pde, sigma_px, Iter_outer, display_plots)
+        plot_appSol = plotApproxVsSol(psi, poly_pow, pde, sigma_px, Iter_outer, display_plots, samples)
     plot_appSol.add_curve_pol(psi, torch.diag(Sigmaa), kkk)
     tt = time.time()
 print("Program Finished.")
@@ -294,9 +308,10 @@ print("Sample time: ", samples.sample_time)
 
 #plotModelDists(model, guide, phi_max, A, u, sigma_r, sigma_w, psi, nele)
 
-plotSimplePsi_Phi(Iter_total, nele, psi_history[0:nele,:], psi, phi_max_history, t,
-                  residual_history, grads, gradsNorm, Iter_svi, display_plots, sigma_history) # instead of grads it has only gradsNorm
-
+#plotSimplePsi_Phi(Iter_total, nele, psi_history[0:nele,:], psi, phi_max_history, t,
+#                  residual_history, grads, gradsNorm, Iter_svi, display_plots, sigma_history) # instead of grads it has only gradsNorm
+plotSimplePsi_Phi(Iter_total, nele, poly_pow+1, psi_history, psi, phi_max_history, t,
+                  residual_history, grads, gradsNorm, Iter_svi, display_plots, sigma_history) # instead
 plot_phispace.show()
 
 
@@ -308,6 +323,7 @@ test = 1
 #for i in range(0, len(grads)):
 #    print("Iteration",i, " : ", grads[i])
 print(psi)
-
-
+if phiOptim.testEigOpt[1] == True:
+    print("phiOptEigTest MaximizationTest: " + str(phiOptim.testEigOpt[0]))
+    print("phiOptEigTest MCtest: " + str(phiOptim.testEigOpt[2]))
 
