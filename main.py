@@ -18,7 +18,7 @@ import pyro
 import pyro.distributions as dist
 from pyro.infer import SVI, JitTrace_ELBO, Trace_ELBO, Predictive, TraceGraph_ELBO
 from pyro.infer.autoguide import AutoMultivariateNormal, AutoDelta
-from pyro.optim import Adam
+#from pyro.optim import Adam
 from pyro.nn import PyroSample
 from torch import nn
 from pyro.nn import PyroModule
@@ -39,10 +39,11 @@ from textwrap import wrap
 from utils.powerIteration import powerIteration
 from model.phiGradOpt import phiOptimizer
 from utils.plotBasic import plotSimplePsi_Phi, plotPhiVsSpace, plotSimplePsi_Phi_Pol
-from model.modelClass import modelMvn, modelDelta, modelMvnDeb, modelMvnPolynomial, modelDeltaAllres
+from model.modelClass import modelMvn, modelDelta, modelMvnDeb, modelPolynomial, modelDeltaAllres, modelDelta2Polynomial
 from model.modelClass import modelDeltaPolynomial, modelDeltaNn
 from utils.plotApproxVsTrueSol import plotApproxVsSol, plotApproxVsTrueSol
 from model.pdeForm import pdeForm, pdeFenics
+from utils.times_and_tags import times_and_tags
 from input import *
 
 ################ Testing weighting residuals ################
@@ -106,15 +107,20 @@ for iii in range(0, 1):
     grads = []
     gradsNorm = []
 
-    phiOptim = phiOptimizer(pde, poly_pow=poly_pow, eigRelax=eigRelax, powIterTol=powerIterTol,
+    phiOptim = phiOptimizer(pde, poly_pow=poly_pow, eigRelax=eigRelax, Iter_grad=Iter_grad, gradLr=gradLr,
+                            validationMode=phiValidMode, powIterTol=powerIterTol,
                             Nx_samp_phi=Nx_samp_phiOpt, runTests=runTests)
     residual_history = []
+    residuals_history = []
+    hist_elbo = []
 
-
-    samples = modelMvnPolynomial(pde, phi_max=phi_max, poly_pow=poly_pow, allRes=allRes)
+    samples = modelPolynomial(pde, phi_max=phi_max, poly_pow=poly_pow, allRes=allRes, surgtType=surgtType)
     phiOptim.model = samples
     model = samples.executeModel
-    guide = samples.executeGuide
+    if samples.surgtType == 'Delta':
+        guide = samples.executeGuideDelta
+    elif samples.surgtType == 'Mvn':
+        guide = samples.executeGuideMvn
     plot_phispace = plotPhiVsSpace(torch.squeeze(phi_max, 1), nele, Iter_total, display_plots, row=7, col=5)
     kkk = 0
 
@@ -150,7 +156,7 @@ for iii in range(0, 1):
                 phiOptim.temp_res = torch.rand(phiOptim.Nx_samp).tolist()
                 phiOptim.full_res_temp = torch.rand(phiOptim.Nx_samp).tolist()
         """
-        hist_elbo = []
+
         pyro.clear_param_store()
 
         svi = SVI(model,
@@ -160,6 +166,7 @@ for iii in range(0, 1):
 
 
         num_iters = Iter_svi if not smoke_test else 2
+        timer = times_and_tags()
 
 
         ### Phi Gradient Update ###
@@ -178,7 +185,8 @@ for iii in range(0, 1):
         current_residual = torch.linalg.norm(bbbb)
         """
 
-        phi_max = phiOptim.phiEigOpt()
+        #phi_max = phiOptim.phiGradOpt()
+
         #phi_max = phiOptim.phiGradOptMvnNx()
         #phi_max = torch.ones(nele)
         svi_time = 0
@@ -189,6 +197,19 @@ for iii in range(0, 1):
 
 
         for i in range(num_iters):
+            ### sigma_r scheduler ###
+          #  if (i+1) % (Iter_total*0.25) == 0:
+          #      sigma_r = sigma_r/math.sqrt(math.sqrt(10))
+          #      lr = lr / math.sqrt(math.sqrt(10))
+            #sigma_r = (sigma_r_final-sigma_r_init)/Iter_total*(i) + sigma_r_init
+            #if i<800:
+            #    sigma_r = (sigma_r_final/sigma_r_init)**(1/Iter_total)*sigma_r
+            #phi_max = phiOptim.phiEigOpt()
+            #timer.add("phiOptimTime")
+            phi_max = phiOptim.phiGradOpt()
+
+            #if (i+1) % (Iter_total*0.1) == 0:
+                #phi_max = phiOptim.phiGradOpt()
             samples.removeSamples()
             kkk = kkk+1
 
@@ -233,8 +254,9 @@ for iii in range(0, 1):
                 sigma_history = np.concatenate((sigma_history, np.reshape(val[1], (-1, 1))), axis=1)
 
             elif len(val) == 1:
-                Sigmaa = torch.zeros(nele)
-                samples.psii = psi
+                Sigmaa = torch.ones(samples.nele)
+                samples.psii = [psi, Sigmaa]
+                sigma_history = np.concatenate((sigma_history, np.reshape(samples.psii[1], (-1, 1))), axis=1)
             elif NN == True:
                 Sigmaa = torch.zeros(nele)
                 samples.psii = [psi, torch.from_numpy(val[1])]
@@ -243,12 +265,16 @@ for iii in range(0, 1):
 
 
             current_residual = 0
+            current_residuals = 0
             for jk in range(0, Nx_samp):
                 current_residual = current_residual + samples.temp_res[jk].item()
+                current_residuals = current_residuals + samples.full_temp_res[jk].item()
             current_residual = current_residual/Nx_samp
+            current_residual = current_residual / Nx_samp
 
             t8 = time.time()
             residual_history.append(current_residual)
+            residuals_history.append(current_residuals)
             t9 = time.time()
 
 
@@ -257,7 +283,7 @@ for iii in range(0, 1):
 
             ### Recording History & Applying Multipliers to hyperparameters
             # psi_history = np.concatenate((psi_history, np.transpose(val[0])), axis=1) ## Simple case
-            psi_history = np.concatenate((psi_history, np.reshape(np.transpose(val[0]), (-1, 1))),
+            psi_history = np.concatenate((psi_history, np.reshape(np.transpose(samples.psii[0]), (-1, 1))),
                                          axis=1)  ## For Polynomials
             t10 = time.time()
 
@@ -285,7 +311,7 @@ for iii in range(0, 1):
                 print("Other stuff time analysis: ", tsum)
                 print("Model stuff time analysis: ", samples.model_time)
                 if len(val) == 2:
-                    print("Standard deviation: ", Sigmaa)
+                    print("Variance deviation: ", Sigmaa)
                 print("Progress: ", progress_perc, "/", 100, " ELBO", elbo, "Residual",
                       min(residual_history[-int(Iter_outer / 100):]), "sigma_r", sigma_r)
                 plot_phispace.add_curve(phi_max, kkk)
@@ -311,7 +337,7 @@ print("Sample time: ", samples.sample_time)
 #plotSimplePsi_Phi(Iter_total, nele, psi_history[0:nele,:], psi, phi_max_history, t,
 #                  residual_history, grads, gradsNorm, Iter_svi, display_plots, sigma_history) # instead of grads it has only gradsNorm
 plotSimplePsi_Phi(Iter_total, nele, poly_pow+1, psi_history, psi, phi_max_history, t,
-                  residual_history, grads, gradsNorm, Iter_svi, display_plots, sigma_history) # instead
+                  residual_history, residuals_history,hist_elbo, phiOptim.relImp, grads, gradsNorm, Iter_svi, display_plots, sigma_history) # instead
 plot_phispace.show()
 
 
@@ -323,7 +349,8 @@ test = 1
 #for i in range(0, len(grads)):
 #    print("Iteration",i, " : ", grads[i])
 print(psi)
+print(phi_max)
 if phiOptim.testEigOpt[1] == True:
     print("phiOptEigTest MaximizationTest: " + str(phiOptim.testEigOpt[0]))
     print("phiOptEigTest MCtest: " + str(phiOptim.testEigOpt[2]))
-
+timer.print()

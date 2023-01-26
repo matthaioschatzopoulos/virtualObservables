@@ -68,7 +68,8 @@ def smooth(y, box_pts):
     y_smooth = np.convolve(y, box, mode='same')
     return y_smooth
 
-def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_history, t, residual,grads,
+def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_history, t, residual, residuals,
+                      elbo, relImp, grads,
                       gradsNorm, Iter_svi, display_plots, sigma_history):
 
     plt.figure(1)
@@ -108,6 +109,8 @@ def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_hist
     plt.figure(3)
     plt.plot(np.linspace(1, Iter_outer, Iter_outer), np.asarray(residual), '-g')
     plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 10), '-r')
+    plt.plot(np.linspace(1, Iter_outer, Iter_outer), np.asarray(residuals), '-b')
+    plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residuals), 10), '-c')
     plt.grid(True)
     plt.yscale('log')
     #plt.title("Residual convergence  \n" + "\n".join(wrap(title_id)))
@@ -122,6 +125,39 @@ def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_hist
     if display_plots:
         plt.show()
 
+    plt.figure(311)
+    plt.plot(np.linspace(1, Iter_outer, Iter_outer), np.asarray(elbo), '-m')
+    #plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 10), '-r')
+    plt.grid(True)
+    plt.yscale('log')
+    # plt.title("Residual convergence  \n" + "\n".join(wrap(title_id)))
+    plt.title("ELBO")
+    plt.xlabel("Number of iterations")
+    plt.ylabel("ELBO")
+    plt.legend(["ELBO"])
+    if not os.path.exists('./results/elbo/'):
+        os.makedirs('./results/elbo/')
+    plt.savefig("./results/elbo/elbo", dpi=300, bbox_inches='tight')
+    # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
+    if display_plots:
+        plt.show()
+
+    plt.figure(3111)
+    plt.plot(np.linspace(1, Iter_outer, Iter_outer), np.asarray(relImp), '-m')
+    #plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 10), '-r')
+    plt.grid(True)
+    #plt.yscale('log')
+    # plt.title("Residual convergence  \n" + "\n".join(wrap(title_id)))
+    plt.title("Relative Improvement to sqRes when GradOpt is applied for phi")
+    plt.xlabel("Number of iterations")
+    plt.ylabel("relImp")
+    plt.legend(["relImp"])
+    if not os.path.exists('./results/relImp/'):
+        os.makedirs('./results/relImp/')
+    plt.savefig("./results/relImp/relImp", dpi=300, bbox_inches='tight')
+    # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
+    if display_plots:
+        plt.show()
 
 
     plt.figure(4)

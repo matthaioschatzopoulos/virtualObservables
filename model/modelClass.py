@@ -487,10 +487,11 @@ class modelDeltaPolynomial:
 
 
 
-class modelMvnPolynomial:
-    def __init__(self, pde, phi_max, poly_pow=None, allRes=True, stdInit = 3):
+class modelPolynomial:
+    def __init__(self, pde, phi_max, poly_pow=None, allRes=True, surgtType='Delta', stdInit = 6):
             self.pde = pde
             self.allRes = allRes
+            self.surgtType = surgtType
             self.nele = pde.effective_nele
             self.mean_px = pde.mean_px
             self.sigma_px = pde.sigma_px
@@ -507,9 +508,18 @@ class modelMvnPolynomial:
             else:
                 self.residuals = torch.zeros(self.nele)
                 self.iter_plate = len(self.residuals)
+
+            self.psi_init = torch.tensor([[1, -1.4195196367299, 0.6010709401081]]) * torch.tensor(0.125)
+            self.psi_init = torch.tensor([[1, -1.4195196367299, 0.6010709401081], [1, -1.4195196367299,
+                                                            0.6010709401081]]) * torch.tensor(1/9)
+
+            self.psi_init = torch.tensor([[1*3/32, -1.4195196367299*3/32, 0.6010709401081*3/32], [1*0.125, -1.4195196367299*0.125,
+                                                            0.6010709401081*0.125],
+                                          [1*3/32, -1.4195196367299*3/32, 0.6010709401081*3/32] ])
+
             self.psi_init = torch.rand(self.nele, poly_pow + 1) * 0.01  # Initialization of psi
             self.readData = 0
-            self.xPoolSize = 1000
+            self.xPoolSize = 3
             ### Input Data Generation ###
             if self.readData == 1:
                 print("Pool of input data x was read from file.")
@@ -519,18 +529,14 @@ class modelMvnPolynomial:
                 self.data_x = 4*self.sigma_px* torch.rand(size=(self.xPoolSize,)) - 2*self.sigma_px
                 print(self.data_x)
                 print(torch.exp(-self.data_x))
-                #self.data_x[0] = 0
-                #self.data_x[1] = -1
-                #self.data_x[2] = 1
-                #self.data_x[3] = -2
-                #self.data_x[4] = 2
+                self.data_x = torch.linspace(-1.5,1.5,self.xPoolSize)
             """
             self.psi_init= torch.tensor([[ 0.0822, -0.0846,  0.0489],
             [ 0.1196, -0.1376,  0.0576],
             [ 0.1226, -0.1307,  0.0732],
             [ 0.0778, -0.0930,  0.0460]])
             """
-            self.Sigmaa_init = torch.eye(self.nele, self.nele) / 10 ** stdInit  # 10**-8 is good with sigma_r = 1
+            self.Sigmaa_init = torch.eye(self.nele, self.nele) / 10 ** stdInit  # 10**-8 is good with sigma r = 1
             self.Sigmaa_init = torch.diag(self.Sigmaa_init, 0)
             self.psii = [self.psi_init, self.Sigmaa_init]
             self.temp_res = []
@@ -540,8 +546,8 @@ class modelMvnPolynomial:
             self.sample_time = 0
 
     def removeSamples(self):
-        self.Nx_counter = 0
         self.temp_res = []
+        self.full_temp_res = []
 
     def polynomial(self, x):
         y = torch.zeros(self.poly_pow + 1, 1)
@@ -563,21 +569,12 @@ class modelMvnPolynomial:
                                                      covariance_matrix=sigma_w ** 2 * torch.eye(self.nele, self.nele)))
 
         b = self.pde.calcResKernel(x, y)
-        self.full_temp_res.append(b.clone().detach())
-        self.temp_res.append(torch.linalg.norm(b.clone().detach()))
-        """
-        if not self.allRes:
-            c = torch.matmul(b, torch.transpose(b, 0, 1))
-            phi_max = torch.reshape(phi_max, (-1, 1))
-            rwmax2 = torch.matmul(torch.transpose(phi_max, 0, 1), c)
-            rwmax2 = torch.squeeze(rwmax2, 1)
-            rwmax2 = torch.squeeze(rwmax2, 0)
-            res = rwmax2
-        """
+        self.full_temp_res.append(torch.linalg.norm(b.clone().detach()))
+        #self.temp_res.append(torch.linalg.norm(b.clone().detach()))
         if not self.allRes:
             #c = torch.matmul(b, torch.transpose(b, 0, 1))
             phi_max = torch.reshape(phi_max, (1, -1))
-            res = torch.matmul(phi_max, abs(b))
+            res = torch.matmul(phi_max, b)
             #rwmax2 = torch.matmul(torch.transpose(phi_max, 0, 1), c)
             res = torch.squeeze(res, 1)
             res = torch.squeeze(res, 0)
@@ -587,12 +584,31 @@ class modelMvnPolynomial:
             b = torch.squeeze(b, 1)
             res = b
 
+        self.temp_res.append(abs(res))
+        #tess = y.event_shape()
         with pyro.plate("data", self.iter_plate):
             residuals = pyro.sample("residuals", dist.Normal(res, sigma_r), obs=self.residuals)
         self.model_time += time.time() - t0
 
+    def executeGuideDelta(self, phi_max, sigma_r, sigma_w):
+        t0 = time.time()
+        #x = pyro.sample("x", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
+        ii = pyro.sample("ii", dist.Categorical(probs=torch.ones(self.xPoolSize) / self.xPoolSize))
+        x = self.data_x[ii]
+        mq = pyro.param('mq', self.psii[0])
 
-    def executeGuide(self, phi_max, sigma_r, sigma_w):
+        polvecx = self.polynomial(x)
+        mq_final = torch.matmul(mq, polvecx)
+
+        mq_final = torch.transpose(mq_final, 0, 1)
+        #Sigma = pyro.param('Sigma', self.psii[1], constraints.positive)
+        #Sigmam = torch.diag(Sigma)
+        #y = pyro.sample("y", dist.MultivariateNormal(loc=mq_final,
+        #                                            covariance_matrix=Sigmam))
+        y = pyro.sample("y", dist.Delta(mq_final, event_dim=1))
+        #tess = y.event_shape()
+        self.guide_time = self.guide_time + time.time() - t0
+    def executeGuideMvn(self, phi_max, sigma_r, sigma_w):
         t0 = time.time()
         #x = pyro.sample("x", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
         ii = pyro.sample("ii", dist.Categorical(probs=torch.ones(self.xPoolSize) / self.xPoolSize))
@@ -609,10 +625,182 @@ class modelMvnPolynomial:
                                                     covariance_matrix=Sigmam))
         self.guide_time = self.guide_time + time.time() - t0
 
+
+    def sampleResExpValidation(self):
+        #iiii = pyro.sample("iiii", dist.Categorical(probs=torch.ones(self.xPoolSize) / self.xPoolSize))
+        #xxx = self.data_x[iiii]
+        xxx = self.data_x
+        yfinal = torch.zeros((xxx.size(dim=0), self.psii[0].size(dim=0)))
+        for i in range(0, xxx.size(dim=0)):
+            polvecxx = self.polynomialResExp(xxx[i], 1)
+            mqq = torch.matmul(self.psii[0], polvecxx)
+            mqq = torch.transpose(mqq, 0, 1)
+            yyy = pyro.sample("yyy", dist.Delta(mqq, event_dim=1))
+            yfinal[i, :] = yyy
+        return yfinal
+    def sampleResExpDelta(self, Nx):
+        with pyro.plate("data", Nx):
+            iiii = pyro.sample("iiii", dist.Categorical(probs=torch.ones(self.xPoolSize) / self.xPoolSize))
+            xxx = self.data_x[iiii]
+            polvecxx = self.polynomialResExp(xxx, Nx)
+            mqq = torch.matmul(self.psii[0], polvecxx)
+            mqq = torch.transpose(mqq, 0, 1)
+            yyy = pyro.sample("yyy", dist.Delta(mqq, event_dim=1))
+            return xxx, yyy
+
+    def sampleResExpMvn(self, Nx):
+        with pyro.plate("data", Nx):
+            iiii = pyro.sample("iiii", dist.Categorical(probs=torch.ones(self.xPoolSize) / self.xPoolSize))
+            xxx = self.data_x[iiii]
+            polvecxx = self.polynomialResExp(xxx, Nx)
+            mqq = torch.matmul(self.psii[0], polvecxx)
+            #mqq = torch.reshape(mqq, (-1, 1))
+            mqq = torch.transpose(mqq, 0, 1)
+            Sigmaa = self.psii[1]
+            #tesss = torch.distributions.multivariate_normal.MultivariateNormal(loc=mqq, covariance_matrix=torch.diag(Sigmaa))
+            #tess2 = tesss.batch_shape
+            #tess3 = tesss.event_shape
+            yyy = pyro.sample("yyy", dist.MultivariateNormal(loc=mqq,
+                                                           covariance_matrix=torch.diag(Sigmaa)))
+            return xxx, yyy
+
+    def sqResGrad(self, x, phi, A, Psi, v, f): ### Valid only when all derichlet bcs are zero
+        t0 = torch.exp(-x)
+        AT = torch.transpose(A, 0, 1)
+        grad = 2 * t0 * torch.matmul(torch.reshape(phi, (1, -1)), torch.matmul( t0 * torch.matmul(A, torch.matmul(Psi, v)) - f))
+        grad = grad * torch.outer(torch.matmul(AT, phi), torch.transpose(v, 0, 1))
+        return grad
+    def validateLikelihoodGrad(self):
+        return
+class modelDelta2Polynomial:
+    def __init__(self, pde, phi_max, poly_pow=None, allRes=True, stdInit=0):
+        self.pde = pde
+        self.allRes = allRes
+        self.nele = pde.effective_nele
+        self.mean_px = pde.mean_px
+        self.sigma_px = pde.sigma_px
+        self.Nx_samp = pde.Nx_samp
+        self.Nx_samp_phi = self.Nx_samp
+        self.x = torch.zeros(self.Nx_samp_phi, 1)
+        self.y = torch.zeros(self.Nx_samp_phi, self.nele)
+        self.Nx_counter = 0
+        self.phi_max = phi_max
+        self.poly_pow = poly_pow
+        if not self.allRes:
+            self.residuals = torch.tensor(0)
+            self.iter_plate = 1
+        else:
+            self.residuals = torch.zeros(self.nele)
+            self.iter_plate = len(self.residuals)
+        self.psi_init = torch.rand(self.nele, poly_pow + 1) * 0.01  # Initialization of psi
+        self.readData = 0
+        self.xPoolSize = 3
+        ### Input Data Generation ###
+        if self.readData == 1:
+            print("Pool of input data x was read from file.")
+        else:
+            print("Pool of input data x generated for this run.")
+            self.data_x = torch.normal(self.mean_px, self.sigma_px, size=(self.xPoolSize,))
+            self.data_x = 4 * self.sigma_px * torch.rand(size=(self.xPoolSize,)) - 2 * self.sigma_px
+            print(self.data_x)
+            print(torch.exp(-self.data_x))
+            self.data_x = torch.linspace(-2, 2, self.xPoolSize)
+        """
+        self.psi_init= torch.tensor([[ 0.0822, -0.0846,  0.0489],
+        [ 0.1196, -0.1376,  0.0576],
+        [ 0.1226, -0.1307,  0.0732],
+        [ 0.0778, -0.0930,  0.0460]])
+        """
+        self.Sigmaa_init = torch.eye(self.nele, self.nele) / 10 ** stdInit  # 10**-8 is good with sigma r = 1
+        self.Sigmaa_init = torch.diag(self.Sigmaa_init, 0)
+        self.psii = [self.psi_init, self.Sigmaa_init]
+        self.temp_res = []
+        self.full_temp_res = []
+        self.model_time = 0
+        self.guide_time = 0
+        self.sample_time = 0
+
+    def removeSamples(self):
+        self.Nx_counter = 0
+        self.temp_res = []
+
+    def polynomial(self, x):
+        y = torch.zeros(self.poly_pow + 1, 1)
+        for k in range(0, self.poly_pow + 1):
+            y[k, 0] = x ** k
+        return y
+
+    def polynomialResExp(self, x, Nx):
+        y = torch.zeros(self.poly_pow + 1, Nx)
+        for k in range(0, self.poly_pow + 1):
+            y[k, :] = torch.pow(x, k)
+        return y
+
+    def executeModel(self, phi_max, sigma_r, sigma_w):
+        t0 = time.time()
+        # x = pyro.sample("x", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
+        ii = pyro.sample("ii", dist.Categorical(probs=torch.ones(self.xPoolSize) / self.xPoolSize))
+        x = self.data_x[ii]
+        y = pyro.sample("y", dist.MultivariateNormal(loc=torch.zeros((1, self.nele)),
+                                                     covariance_matrix=sigma_w ** 2 * torch.eye(self.nele,
+                                                                                                self.nele)))
+
+        b = self.pde.calcResKernel(x, y)
+        self.full_temp_res.append(b.clone().detach())
+        # self.temp_res.append(torch.linalg.norm(b.clone().detach()))
+        """
+        if not self.allRes:
+            c = torch.matmul(b, torch.transpose(b, 0, 1))
+            phi_max = torch.reshape(phi_max, (-1, 1))
+            rwmax2 = torch.matmul(torch.transpose(phi_max, 0, 1), c)
+            rwmax2 = torch.squeeze(rwmax2, 1)
+            rwmax2 = torch.squeeze(rwmax2, 0)
+            res = rwmax2
+        """
+        if not self.allRes:
+            # c = torch.matmul(b, torch.transpose(b, 0, 1))
+            phi_max = torch.reshape(phi_max, (1, -1))
+            res = torch.matmul(phi_max, b)
+            # rwmax2 = torch.matmul(torch.transpose(phi_max, 0, 1), c)
+            res = torch.squeeze(res, 1)
+            res = torch.squeeze(res, 0)
+            # rwmax2 = torch.squeeze(rwmax2, 0)
+            res = res
+        else:
+            b = torch.squeeze(b, 1)
+            res = b
+
+        self.temp_res.append(abs(res))
+
+        with pyro.plate("data", self.iter_plate):
+            residuals = pyro.sample("residuals", dist.Normal(res, sigma_r), obs=self.residuals)
+        self.model_time += time.time() - t0
+
+    def executeGuide(self, phi_max, sigma_r, sigma_w):
+        t0 = time.time()
+        # x = pyro.sample("x", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
+        ii = pyro.sample("ii", dist.Categorical(probs=torch.ones(self.xPoolSize) / self.xPoolSize))
+        x = self.data_x[ii]
+        mq = pyro.param('mq', self.psii[0])
+
+        polvecx = self.polynomial(x)
+        mq_final = torch.matmul(mq, polvecx)
+
+        mq_final = torch.transpose(mq_final, 0, 1)
+        mq_final = torch.squeeze(mq_final, 0)
+        y = pyro.sample("y", dist.Delta(mq_final, event_dim=1))
+        #Sigma = pyro.param('Sigma', self.psii[1], constraints.positive)
+        #Sigmam = torch.diag(Sigma)
+        #y = pyro.sample("y", dist.MultivariateNormal(loc=mq_final,
+        #                                             covariance_matrix=Sigmam))
+        self.guide_time = self.guide_time + time.time() - t0
+
+
+
     def sample(self, phi_max, sigma_r, sigma_w):
         t0 = time.time()
         for i in range(0, self.Nx_samp_phi):
-            #xx = pyro.sample("xx", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
+            # xx = pyro.sample("xx", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
             iii = pyro.sample("iii", dist.Categorical(probs=torch.ones(self.xPoolSize) / self.xPoolSize))
             xx = self.data_x[iii]
             polvecxx = self.polynomial(xx)
@@ -636,7 +824,21 @@ class modelMvnPolynomial:
             polvecxx = self.polynomialResExp(xxx, Nx)
             mqq = torch.matmul(self.psii[0], polvecxx)
             mqq = torch.transpose(mqq, 0, 1)
-            Sigmaa = self.psii[1]
-            yyy = pyro.sample("yyy", dist.MultivariateNormal(loc=mqq,
-                                                           covariance_matrix=torch.diag(Sigmaa)))
+            mqq = torch.squeeze(mqq, 0)
+            yyy = pyro.sample("yyy", dist.Delta(mqq, event_dim=1))
+            #Sigmaa = self.psii[1]
+            #yyy = pyro.sample("yyy", dist.MultivariateNormal(loc=mqq,
+            #                                                 covariance_matrix=torch.diag(Sigmaa)))
             return xxx, yyy
+
+    def sampleResExpValidation(self):
+        xxx = pyro.sample("iiii", dist.Delta(self.data_x))
+        polvecxx = self.polynomialResExp(xxx, self.xPoolSize)
+        mqq = torch.matmul(self.psii[0], polvecxx)
+        mqq = torch.transpose(mqq, 0, 1)
+        #Sigmaa = self.psii[1]
+        mqq = torch.squeeze(mqq, 0)
+        yyy = pyro.sample("yyy", dist.Delta(mqq, event_dim=1))
+        #yyy = pyro.sample("yyy", dist.MultivariateNormal(loc=mqq,
+        #                                                 covariance_matrix=torch.diag(Sigmaa)))
+        return xxx, yyy

@@ -34,13 +34,15 @@ import time
 from textwrap import wrap
 
 class phiOptimizer:
-    def __init__(self, pde, poly_pow=None, eigRelax=None, powIterTol=None, Nx_samp_phi=None, runTests=False):
+    def __init__(self, pde, poly_pow=None, eigRelax=None, Iter_grad=1, gradLr=0.1, validationMode=False,
+                 powIterTol=None, Nx_samp_phi=None, runTests=False):
         self.pde = pde
         self.model = None
+        self.validationMode = validationMode
         self.eigRelax = eigRelax
         self.Nx_samp_phiOpt = Nx_samp_phi # 100 is usually a good value
-        self.gradLr = 0.1
-        self.epoch = 100
+        self.gradLr = gradLr
+        self.epoch = Iter_grad
         self.powIterTol = powIterTol
         self.nele = pde.effective_nele
         self.mean_px = pde.mean_px
@@ -52,7 +54,7 @@ class phiOptimizer:
         self.Nx_samp = self.Nx_samp
         self.Nx_counter = 0
         self.phi_max = torch.rand(self.nele)*0.1+torch.ones(self.nele)
-        self.phi_max = self.phi_max/torch.linalg.norm(torch.ones(self.nele))
+        self.phi_max = self.phi_max/torch.linalg.norm(self.phi_max)
         self.poly_pow = poly_pow
         self.temp_res = torch.rand(self.Nx_samp).tolist()
         self.full_res_temp = torch.rand(self.Nx_samp).tolist()
@@ -60,29 +62,77 @@ class phiOptimizer:
             self.full_res_temp[i] = torch.rand(self.nele)*0.1
         # First entry is True if the test has been passed the second is true if the test has been conducted
         self.testEigOpt = [True, runTests, 2] # 1-->Passed Maximization test, 2--> runTests, 3-->Passed MC test
+        self.relImp = []
 
-    def phiGradOptMvnNx(self): # Correct 3/11/22
+    def calcC(self, Nx):
+        C = torch.tensor(0)
+        if self.model.surgtType == 'Delta' and self.validationMode is False:
+            x, y = self.model.sampleResExpDelta(Nx)
+        elif self.model.surgtType == 'Delta' and self.validationMode is True:
+            x = self.model.data_x
+            y = self.model.sampleResExpValidation()
+        elif self.model.surgtType == 'Mvn' and self.validationMode is False:
+            x, y = self.model.sampleResExpMvn(Nx)
+        for jj in range(0, x.size(dim=0)):
+            b = self.pde.calcResKernel(x[jj], y[jj, :])
+            C = C + torch.matmul(torch.reshape(b, (-1, 1)), torch.reshape(b, (1, -1))) / x.size(dim=0)
+        return C
+
+
+    def calcSqRes(self, phi, C):
+        sqRes = torch.matmul(torch.matmul(torch.reshape(phi, (1, -1)), C),
+                     torch.reshape(phi, (-1, 1)))
+        return sqRes
+
+    def phiGradOptTest(self, loss, phiOld):
+        ### MCtest ###
+        """
+        if self.testEigOpt[2] == 2:
+            res = torch.zeros(3)
+            for i in range(0, 3):
+                res[i] = self.calcSqRes(phiOld, self.calcC(int(10**(i+2)))).item()
+
+            if abs(res[2]-res[1])/abs(res[2]) < 0.1:
+                self.testEigOpt[2] = True
+        """
+        ### Maximazation of SqResidual test ###
+        sqResOld = loss[0]
+        #sqRes1 = self.calcSqRes(phiOld / torch.linalg.norm(phiOld), self.calcC(self.Nx_samp_phiOpt))
+        #sqRes2 = self.calcSqRes(phiOld / torch.linalg.norm(phiOld), self.calcC(self.Nx_samp_phiOpt))
+        #sqRes3 = self.calcSqRes(phiOld / torch.linalg.norm(phiOld), self.calcC(self.Nx_samp_phiOpt))
+        sqResNew = loss[-1]
+        self.relImp.append(((sqResNew - sqResOld)/sqResOld).item())
+        #Old test: if sqResNew < sqResOld or sqResUpd < sqResOld:
+        if (sqResNew - sqResOld)/sqResOld < -0.01:
+            self.testEigOpt[0] = False
+        return
+
+    def manualGrad(self, phi, C):
+        f = torch.reshape(phi, (-1, 1))
+        t0 = torch.linalg.norm(phi)
+        t1 = 1/t0**2
+        t2 = torch.matmul(torch.transpose(C, 0, 1), f)
+        grad = -(t1 * torch.matmul(C, f) + t1*t2 - 2/t0 ** 4 * torch.matmul(torch.transpose(f, 0, 1), t2) * f)
+        return grad
+    def phiGradOpt(self):
         phi_max = torch.reshape(self.phi_max, (-1, 1))
+        phi_max_old = phi_max
         phi_max_leaf = phi_max.clone().detach().requires_grad_(True)
         model_phi = [phi_max_leaf]
-        criterion = nn.MSELoss()
-        optimizer = torch.optim.SGD(model_phi, lr=self.gradLr)
+        optimizer = torch.optim.Adam(model_phi, lr=self.gradLr, maximize=True)
         loss_history = []
 
         ### Gradient optimization loops
         for epoch in range(0, self.epoch):
             optimizer.zero_grad()
-            resid22 = torch.zeros(1, 1)
-         #   if y[0, 4] > 5:
-         #       print(y[0,4])
-            for jj in range(0, self.Nx_samp_phi):
-                model_phi_nml = model_phi[0] / torch.linalg.norm(model_phi[0])
-                b = self.pde.calcResKernel(self.x[jj,:], self.y[jj,:])
-                C = torch.matmul(b, torch.transpose(b, 0, 1))
-                resid2 = torch.matmul(torch.transpose(model_phi_nml, 0, 1), C)
-                resid2 = torch.matmul(resid2, model_phi_nml)
-                resid22 = resid22 + resid2 / self.Nx_samp_phi
-            resid2 = resid22
+            sqRes = self.calcSqRes(model_phi[0] / torch.linalg.norm(model_phi[0]), self.calcC(self.Nx_samp_phiOpt))
+            #sqRes1 = self.calcSqRes(model_phi[0] / torch.linalg.norm(model_phi[0]), self.calcCValidation())
+            #sqRes2 = self.calcSqRes(model_phi[0] / torch.linalg.norm(model_phi[0]), self.calcCValidation())
+            #sqRes3 = self.calcSqRes(model_phi[0], self.calcCValidation())
+            #sqRes3 = self.calcSqRes(model_phi[0] / torch.linalg.norm(model_phi[0]), self.calcC(self.Nx_samp_phiOpt))
+            #sqResTest = self.calcSqRes(model_phi[0]/torch.linalg.norm(model_phi[0]), self.calcC(10000))
+            #sqRes = self.calcSqRes(model_phi[0]/torch.linalg.norm(model_phi[0]), self.calcCValidation())
+
             #manDer = -2*resid2/torch.linalg.norm(model_phi[0])*b # manual derivative for Nx = 1 for comparison reasons
             #manDer = -1/2/torch.sqrt(torch.matmul(torch.transpose(model_phi[0], 0, 1),model_phi[0]))*2*model_phi[0]
             ### Manual derivative implementation for comparison ###
@@ -94,9 +144,10 @@ class phiOptimizer:
             #    print("Warning: Residual= ","{:2f}".format(float(resid2))," > 1 in phiGradOptDelta()")
             #loss = criterion(resid2, torch.tensor([[0]]).to(torch.float32))
             #loss = - resid2
-            loss = -torch.linalg.norm(model_phi[0])
-            loss = -resid2
+            #loss = -torch.linalg.norm(model_phi[0])
+            loss = sqRes
             loss.backward(retain_graph=True)
+            #validationGrad = self.manualGrad(phi_max_old, self.calcC(self.Nx_samp_phiOpt))
             #gradd = torch.autograd.grad(loss, model_phi_nml, retain_graph=True)
             optimizer.step()
             #print("Is model_phi[0] leaf tensor:", model_phi[0].is_leaf)
@@ -108,39 +159,31 @@ class phiOptimizer:
             # print("phi_max: ",model_phi[0])
             # print("loss: ",loss)
             loss_history.append(loss)
+        loss_history.append(self.calcSqRes(model_phi[0] / torch.linalg.norm(model_phi[0]), self.calcC(self.Nx_samp_phiOpt)))
         phi_max = model_phi[0] / torch.linalg.norm(model_phi[0])
+        #self.phiEigOpt()
         phi_max = torch.squeeze(phi_max, 1)
+        self.phiGradOptTest(loss_history, phi_max_old)
         self.phi_max = phi_max
         return phi_max.clone().detach()
 
-    def calcC(self, Nx):
-        C = torch.tensor(0)
-        x, y = self.model.sampleResExp(Nx)
-        for jj in range(0, x.size(dim=0)):
-            b = self.pde.calcResKernel(x[jj], y[jj, :])
-            C = C + torch.matmul(torch.reshape(b, (-1, 1)), torch.reshape(b, (1, -1))) / x.size(dim=0)
-        return C
 
-    def calcSqRes(self, phi, C):
-        sqRes = torch.matmul(torch.matmul(torch.reshape(phi, (1, -1)), C),
-                     torch.reshape(phi, (-1, 1))).item()
-        return sqRes
     def phiEigOptTest(self, phiOld, phiNew, phiUpd, C):
         ### MCtest ###
         if self.testEigOpt[2] == 2:
             res = torch.zeros(3)
             for i in range(0, 3):
-                res[i] = self.calcSqRes(phiOld, self.calcC(int(10**(i+2))))
+                res[i] = self.calcSqRes(phiOld, self.calcC(int(10**(i+2)))).item()
 
             if abs(res[2]-res[1])/abs(res[2]) < 0.1:
                 self.testEigOpt[2] = True
         ### Maximazation of SqResidual test ###
-        sqResOld = self.calcSqRes(phiOld, C)
-        sqResNew = self.calcSqRes(phiNew, C)
-        sqResUpd = self.calcSqRes(phiUpd, C)
+        sqResOld = self.calcSqRes(phiOld, C).item()
+        sqResNew = self.calcSqRes(phiNew, C).item()
+        sqResUpd = self.calcSqRes(phiUpd, C).item()
 
         #Old test: if sqResNew < sqResOld or sqResUpd < sqResOld:
-        if sqResNew < sqResOld:
+        if (sqResOld - sqResNew)/sqResOld > 0.05:   ### Simpler is to check sqResNew < sqResOld
             self.testEigOpt[0] = False
         return
 

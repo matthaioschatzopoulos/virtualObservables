@@ -192,7 +192,7 @@ class plotApproxVsSol:
                 self.ax[jj, kk].plot(self.xp, yp - self.conf_inter * sigma, '--k')
                 # self.ax[jj, kk].legend(("Test Solution"+str(j),))
                 self.ax[jj, kk].legend(self.leg_tuple)
-                self.ax[jj, kk].set_yscale('log')
+                #self.ax[jj, kk].set_yscale('log')
                 j = j + 1
                 if j == self.nele:
                     break
