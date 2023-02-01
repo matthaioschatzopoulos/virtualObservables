@@ -193,20 +193,21 @@ for iii in range(0, 1):
         rest_time = 0
         tsum = 0
 
-
+        phi_max = phiOptim.phiGradOpt()
 
 
         for i in range(num_iters):
             ### sigma_r scheduler ###
-          #  if (i+1) % (Iter_total*0.25) == 0:
+            #if (i+1) % (Iter_total*0.51) == 0:
           #      sigma_r = sigma_r/math.sqrt(math.sqrt(10))
-          #      lr = lr / math.sqrt(math.sqrt(10))
+            #     lr = lr / math.sqrt(math.sqrt(10))
             #sigma_r = (sigma_r_final-sigma_r_init)/Iter_total*(i) + sigma_r_init
             #if i<800:
             #    sigma_r = (sigma_r_final/sigma_r_init)**(1/Iter_total)*sigma_r
             #phi_max = phiOptim.phiEigOpt()
             #timer.add("phiOptimTime")
-            phi_max = phiOptim.phiGradOpt()
+            #if (i + 1) % (3) == 0:
+
 
             #if (i+1) % (Iter_total*0.1) == 0:
                 #phi_max = phiOptim.phiGradOpt()
@@ -303,7 +304,12 @@ for iii in range(0, 1):
                 ### Printing Progress ###
 
                 progress_perc = progress_perc + 1
-
+                if False:
+                    if progress_perc % 25 == 0 or progress_perc == 1 or progress_perc == 12:
+                        plot_appSol = plotApproxVsSol(psi, poly_pow, pde, sigma_px, Iter_outer, display_plots, samples)
+                        plot_appSol.add_surface(psi, torch.diag(Sigmaa), kkk)
+                        plot_appSol.add_curve_pol(psi, torch.diag(Sigmaa), kkk)
+                        plot_appSol.show(iter=progress_perc)
 
                 #print("Iteration: ", kk,"/",Iter_outer, " ELBO", elbo, "sigma_r", sigma_r)
                 print("Gradient:",current_grad)
@@ -317,10 +323,7 @@ for iii in range(0, 1):
                 plot_phispace.add_curve(phi_max, kkk)
 
 
-    if iii == 0:
-        plot_appSol = plotApproxVsSol(psi, poly_pow, pde, sigma_px, Iter_outer, display_plots, samples)
-    plot_appSol.add_curve_pol(psi, torch.diag(Sigmaa), kkk)
-    tt = time.time()
+
 print("Program Finished.")
 elapsed = time.time() - t
 print("Total time: ", elapsed)
@@ -340,8 +343,6 @@ plotSimplePsi_Phi(Iter_total, nele, poly_pow+1, psi_history, psi, phi_max_histor
                   residual_history, residuals_history,hist_elbo, phiOptim.relImp, grads, gradsNorm, Iter_svi, display_plots, sigma_history) # instead
 plot_phispace.show()
 
-
-plot_appSol.show()
 
 
 

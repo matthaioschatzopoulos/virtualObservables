@@ -2,6 +2,7 @@
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from textwrap import wrap
 import os
 
@@ -110,19 +111,26 @@ class plotApproxVsSol:
         self.poly_pow = poly_pow
         self.nele = pde.effective_nele
         self.tot_nele = pde.nele
-        self.conf_inter = 2
-        self.conf_inter_px = 2
+        self.conf_inter = 1
+        self.conf_inter_px = 1
         nelsq = np.sqrt(self.nele)
         self.fig, self.ax = plt.subplots(self.nele // math.ceil(nelsq) + 1, math.ceil(nelsq)+1,num=18) ### +1 is added for dimx=1
+        self.figsurf, self.surf = plt.subplots(subplot_kw={"projection": "3d"})
         #self.fig.set_figheight(30)
         #self.fig.set_figwidth(50)
         #self.fig.subplots_adjust(hspace=0.5, wspace=0.35)
         self.fig.set_figheight(8)
         self.fig.set_figwidth(10)
         self.fig.subplots_adjust(hspace=0.3, wspace=0.2)
+        self.Strue, self.Xtrue = torch.meshgrid(torch.linspace(0, 1, 101), torch.linspace(-1, 1, 101), indexing='ij')
+        self.yTrueSurf = torch.zeros((self.Strue.size(dim=0), self.Xtrue.size(dim=0)))
         def analsol(s,x):
             y = (-s**2/2+s/2)*np.exp(-x)
             return y
+        for i1 in range(0, self.Strue.size(dim=0)):
+            for i2 in range(0, self.Xtrue.size(dim=0)):
+                self.yTrueSurf[i1, i2] = analsol(self.Strue[i1, i2], self.Xtrue[i1, i2])
+        #self.yTrueSurf = analsol(self.Strue[)
         #self.xp = np.linspace(-1, 1, 101)
         self.xp = np.linspace(-self.conf_inter_px*sigma_px, self.conf_inter_px*sigma_px, 101)
         counter =0
@@ -199,13 +207,75 @@ class plotApproxVsSol:
             if j == self.nele:
                 break
 
-    def show(self):
+    def polynomial(self, x):
+        y = torch.zeros(self.poly_pow + 1, 1)
+        for k in range(0, self.poly_pow + 1):
+            y[k, 0] = x ** k
+        return y
+
+
+    def add_surface(self, psi, var, iterat):
+        real_nele = self.pde.nele
+        S = torch.linspace(0, 1, real_nele + 1)
+        X = torch.linspace(-1, 1, 101)
+        self.S, self.X = torch.meshgrid(S, X, indexing='ij')
+        yMean = torch.zeros((real_nele+1, X.size(dim=0)))
+        yHigh = torch.zeros((real_nele+1, X.size(dim=0)))
+        yLow = torch.zeros((real_nele+1, X.size(dim=0)))
+        # psi = torch.transpose(psi, 0, 1)
+        psi = psi.cpu()
+        var = torch.diag(var)
+        var = torch.reshape(var, (-1, 1))
+        var = var.detach().cpu().numpy()
+
+        self.leg_tuple = self.leg_tuple + ("Approx. Solution, iter = " + str(iterat),)
+        for kkk in range(1, real_nele):
+            for iii in range(0, X.size(dim=0)):
+                polvecx = self.polynomial(X[iii])
+                tess = torch.matmul(psi, polvecx)
+                yMean[1:real_nele, iii] = torch.squeeze(torch.matmul(psi, polvecx), dim=1)
+                yHigh[1:real_nele, iii] = yMean[1:real_nele, iii] + self. conf_inter * torch.sqrt(torch.from_numpy(var[kkk-1, :]))
+                yLow[1:real_nele, iii] = yMean[1:real_nele, iii] - self.conf_inter * torch.sqrt(torch.from_numpy(var[kkk-1, :]))
+        yMean[0, :] = torch.ones(X.size(dim=0)) * self.pde.lBoundDir
+        yHigh[0, :] = torch.ones(X.size(dim=0)) * self.pde.lBoundDir
+        yLow[0, :] = torch.ones(X.size(dim=0)) * self.pde.lBoundDir
+        yMean[-1, :] = torch.ones(X.size(dim=0)) * self.pde.rBoundDir
+        yHigh[-1, :] = torch.ones(X.size(dim=0)) * self.pde.rBoundDir
+        yLow[-1, :] = torch.ones(X.size(dim=0)) * self.pde.rBoundDir
+
+
+        self.surf.plot_wireframe(self.S, self.X, yHigh, color='gray', alpha=0.3,
+                                            linewidth=0.01, antialiased=False, label='Upper Confidence Interval')
+        self.surf.plot_wireframe(self.S, self.X, yLow, color='gray', alpha=0.3,
+                                           linewidth=0.01, antialiased=False, label='Lower Confidence Interval')
+        self.surf.plot_surface(self.S, self.X, yMean, cmap='Reds', alpha=0.5,                                            linewidth=0.05, antialiased=False, label='Approximate Solution')
+        self.surf.plot_surface(self.Strue, self.Xtrue, self.yTrueSurf, cmap='Greens', alpha=0.5,
+                                          linewidth=0.01, antialiased=False, label='True Solution')
+        ConfPatch = mpatches.Patch(color='gray', label='Confidence Intervals')
+        ApproxPatch = mpatches.Patch(color='red', label='Approximate Solution')
+        TruePatch = mpatches.Patch(color='green', label='True Solution')
+        self.surf.legend(handles=[ConfPatch, ApproxPatch, TruePatch])
+        self.surf.set_xlabel('Space: s', fontsize=10)
+        self.surf.set_ylabel('Uncertain Input: x', fontsize=10)
+        self.surf.set_zlabel('Solution Value: y', fontsize=10)
+
+
+
+
+    def show(self, iter=0):
         #plot_title = "Plot of Approximate Vs True Solution \n" + "\n".join(wrap(title_id))
         plot_title = "Plot of Approximate Vs True Solution for different x"
         self.fig.suptitle(plot_title, fontsize=16)
+        self.figsurf.suptitle(plot_title, fontsize=16)
         if not os.path.exists('./results/approxVsTrueSol/'):
             os.makedirs('./results/approxVsTrueSol/')
+        if not os.path.exists('./results/approxVsTrueSol/surfPlots%d/' % iter):
+            os.makedirs('./results/approxVsTrueSol/surfPlots%d/' % iter)
         self.fig.savefig("./results/approxVsTrueSol/approxVsTrueSol", dpi=300, bbox_inches='tight')
+        for ii in range(0, 360, 30):
+            self.surf.view_init(elev=10., azim=ii)
+            self.figsurf.savefig("./results/approxVsTrueSol/surfPlots%d/surf%d.png" % (iter, ii), dpi=300, bbox_inches='tight')
         #self.fig.tight_layout()
         if self.display_plots:
             self.fig.show()
+            self.figsurf.show()

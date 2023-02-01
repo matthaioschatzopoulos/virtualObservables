@@ -30,6 +30,7 @@ smoke_test = ('CI' in os.environ)
 from torch.distributions import constraints
 from pyro.infer import Predictive
 import time
+import fenics as df
 from textwrap import wrap
 
 def plotGradDeg(grad, deg, smoothing=10, display_plots=False):
@@ -104,6 +105,96 @@ def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_hist
     if display_plots:
         plt.show()
 
+    def FenicsMeshPlot(nele, coeff):
+        """
+        :param nele: Number of elements
+        :param coeff: Eigenvector phi
+        :return: w(s) (It doesn't work for now!)
+        """
+        coeff = coeff.numpy()
+        mesh = df.IntervalMesh(nele+1, 0.0, 1.0)
+        # my function space
+        V = df.FunctionSpace(mesh, 'CG', 1)
+
+        local_range = V.dofmap().ownership_range()
+        num_local_dofs = local_range[1] - local_range[0]
+
+        u = df.Function(V)
+        #coeff = np.ones(num_local_dofs)
+        #coeff[0] = 0
+
+        u.vector().set_local(coeff[df.vertex_to_dof_map(V)])
+        U = np.flip(u.vector().get_local())
+        df.plot(u)
+        plt.show()
+
+    def ufun(sv, ss):
+        """
+        :param sv: Single Space input value
+        :param ss: The whole array containing all the discrete values of space s=linspace(0, 1, nele+2)
+        :return: u(s)
+        """
+        ss = ss.numpy()
+        u = np.zeros(len(ss))
+        for i in range(1, len(ss)-1):
+            s = np.array([ss[i] -(ss[i]-ss[i-1]), ss[i], ss[i] +(ss[i+1]-ss[i])])
+            u[i] = np.piecewise(sv, [sv < s[0], s[0] < sv and sv <= s[1], s[1] < sv and sv < s[2], sv > s[2]],
+                              [0, (sv - s[0]) / (s[2] - s[1]), (s[2] - sv) / (s[2] - s[1]), 0])
+        ### i=first
+        s = np.array([ss[0] -(ss[1]-ss[0]), ss[0], ss[0] +(ss[1]-ss[0])])
+        u[0] = np.piecewise(sv, [sv < s[0], s[0] < sv and sv <= s[1], s[1] < sv and sv < s[2], sv > s[2]],
+                          [0, (sv - s[0]) / (s[2] - s[1]), (s[2] - sv) / (s[2] - s[1]), 0])
+
+        ### i=last
+        s = np.array([ss[-1] - (ss[-2] - ss[-1]), ss[-1], ss[-1] + (ss[-2] - ss[-1])])
+        u[-1] = np.piecewise(sv, [sv < s[-3], s[-3] < sv and sv <= s[-2], s[-2] < sv and sv < s[-1], sv > s[-1]],
+                            [0, (sv - s[-3]) / (s[-1] - s[-2]), (s[-1] - sv) / (s[-1] - s[-2]), 0])
+        return u
+
+    def weightfun(phiHist, ss):
+        """
+        :param phiHist: Eigenvector phi for only one iteration
+        :param ss: The whole array containing all the discrete values of space s = np.linspace(0, 1, nele+2)
+        :return: w(s) vector for only one iteration
+        """
+        ws = np.zeros(len(ss))
+        for i in range(0, len(ss)):
+            #phiHist = np.reshape(phiHist, (1, -1))
+            us = ufun(ss[i], torch.linspace(0, 1, phiHist.size(dim=0)))
+            ws[i] = np.dot(phiHist, us)
+        return ws
+
+    def wHist(phiHist, ss):
+        """
+        :param phiHist: The whole history of eigenvectors phi for different iterations
+        :param ss: The whole array containing all the discrete values of space s = np.linspace(0, 1, nele+2)
+        :return: W(s) for all the different iterations
+        """
+        wHist = np.zeros((len(ss.numpy()), np.shape(phiHist)[1]))
+        for i in range(0, np.shape(phiHist)[1]):
+            wHist[:, i] = weightfun(phiHist[:, i], ss)
+        return torch.from_numpy(wHist)
+    sInterval = torch.linspace(0, 1, 101)
+    phiEvolution = torch.cat(
+        (torch.zeros((1, Iter_outer + 1)), torch.from_numpy(phi_max_history), torch.zeros((1, Iter_outer + 1))), dim=0)
+    phiEvolution = phiEvolution[:, torch.arange(0, phiEvolution.size(dim=1), 20)]
+    iterInterval = torch.linspace(0, phiEvolution.size(dim=1), phiEvolution.size(dim=1))
+    s, Iterations = torch.meshgrid(sInterval, iterInterval, indexing='ij')
+
+
+    wEvolution = wHist(phiEvolution, sInterval)
+    FenicsMeshPlot(nele, phiEvolution[:, 1])
+    figsurf, surf = plt.subplots(subplot_kw={"projection": "3d"}, num=21)
+    surf.plot_surface(s, Iterations, wEvolution, color='blue', alpha=0.6,
+                             linewidth=0.03, antialiased=False, label='Evolution of weight functions')
+    surf.set_xlabel('Space: s', fontsize=10)
+    surf.set_ylabel('MinMax Iteration: i', fontsize=10)
+    surf.set_zlabel("Weight function: w(s)", fontsize=10)
+    figsurf.suptitle("Evolution of the weight function w(s)", fontsize=16)
+    for ii in range(0, 360, 30):
+        surf.view_init(elev=10., azim=ii)
+        figsurf.savefig("./results/order0Phi/surf%d.png" % ii, dpi=300,
+                             bbox_inches='tight')
 
 
     plt.figure(3)
@@ -143,7 +234,7 @@ def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_hist
         plt.show()
 
     plt.figure(3111)
-    plt.plot(np.linspace(1, Iter_outer, Iter_outer), np.asarray(relImp), '-m')
+    plt.plot(np.linspace(1, len(relImp), len(relImp)), np.asarray(relImp), '-m')
     #plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 10), '-r')
     plt.grid(True)
     #plt.yscale('log')

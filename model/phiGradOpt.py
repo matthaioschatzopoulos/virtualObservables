@@ -72,7 +72,7 @@ class phiOptimizer:
             x = self.model.data_x
             y = self.model.sampleResExpValidation()
         elif self.model.surgtType == 'Mvn' and self.validationMode is False:
-            x, y = self.model.sampleResExpMvn(Nx)
+            x, y = self.model.sampleResExpDelta(Nx)
         for jj in range(0, x.size(dim=0)):
             b = self.pde.calcResKernel(x[jj], y[jj, :])
             C = C + torch.matmul(torch.reshape(b, (-1, 1)), torch.reshape(b, (1, -1))) / x.size(dim=0)
