@@ -488,7 +488,7 @@ class modelDeltaPolynomial:
 
 
 class modelPolynomial:
-    def __init__(self, pde, phi_max, poly_pow=None, allRes=True, surgtType='Delta', stdInit = 8):
+    def __init__(self, pde, phi_max, poly_pow=None, allRes=True, surgtType='Delta', stdInit = 8): #It was stdInit=8
             self.pde = pde
             self.allRes = allRes
             self.surgtType = surgtType
@@ -518,6 +518,9 @@ class modelPolynomial:
                                           [1*3/32, -1.4195196367299*3/32, 0.6010709401081*3/32] ])
 
             self.psi_init = torch.rand(self.nele, poly_pow + 1) * 0.01  # Initialization of psi
+
+
+
             """
             self.psi_init = torch.tensor([[0.0316, -0.0177, 0.0110],
                     [0.0606, -0.0306, 0.0142],

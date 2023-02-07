@@ -72,7 +72,7 @@ print(device)
 os.system('cp ./input.py ./results/inputParams.txt')
 
 ### Definition and Form of the PDE ###
-pde = pdeForm(nele, mean_px, sigma_px, Nx_samp, lBoundDir=lBoundDir, rBoundDir=rBoundDir,
+pde = pdeForm(nele, mean_px, sigma_px, sigma_r, Nx_samp, lBoundDir=lBoundDir, rBoundDir=rBoundDir,
               lBoundNeu=lBoundNeu, rBoundNeu=rBoundNeu, rhs=rhs)
 A = pde.A
 u = pde.u
@@ -113,6 +113,12 @@ for iii in range(0, 1):
     residual_history = []
     residuals_history = []
     hist_elbo = []
+    histElboMin = []
+    histElboMax = []
+    histElboMinMax = []
+    histPhiGrad = []
+    histPsiGrad = []
+    histJointGrad = []
 
     samples = modelPolynomial(pde, phi_max=phi_max, poly_pow=poly_pow, allRes=allRes, surgtType=surgtType)
     phiOptim.model = samples
@@ -122,6 +128,7 @@ for iii in range(0, 1):
     elif samples.surgtType == 'Mvn':
         guide = samples.executeGuideMvn
     plot_phispace = plotPhiVsSpace(torch.squeeze(phi_max, 1), nele, Iter_total, display_plots, row=7, col=5)
+    plot_appSol = plotApproxVsSol(samples.psii[0], poly_pow, pde, sigma_px, Iter_outer, display_plots, samples)
     kkk = 0
 
 
@@ -192,7 +199,7 @@ for iii in range(0, 1):
         svi_time = 0
         rest_time = 0
         tsum = 0
-
+        plot_appSol.calcSurf(samples.psii[0], torch.diag(samples.psii[1]), kkk)
         phi_max = phiOptim.phiGradOpt()
 
 
@@ -214,10 +221,23 @@ for iii in range(0, 1):
             samples.removeSamples()
             kkk = kkk+1
 
+            phiGradVal = phiOptim.getPhiGrad()
             ### SVI step ###
             temp = time.time()
             elbo, current_grad = svi.stepGrad(phi_max,
                                               torch.tensor(sigma_r), torch.tensor(sigma_w))
+
+
+            if i == 0:
+                histPhiGrad.append(torch.linalg.norm(phiGradVal.detach().cpu()))
+                histPsiGrad.append(torch.linalg.norm(current_grad[0].detach().cpu())) #Derivates only wrt psi[0] not with sigma
+                histJointGrad.append(torch.linalg.norm(torch.cat((phiGradVal, torch.reshape(current_grad[0], (-1, 1))), 0)).numpy().item())
+
+
+            if i == 0:
+                histElboMinMax.append(elbo)
+            elif i == (Iter_svi - 1):
+                histElboMinMax.append(elbo)
             svi_time = svi_time + time.time() - temp
             temp = time.time()
             t1 = time.time()
@@ -304,12 +324,18 @@ for iii in range(0, 1):
                 ### Printing Progress ###
 
                 progress_perc = progress_perc + 1
-                if False:
-                    if progress_perc % 25 == 0 or progress_perc == 1 or progress_perc == 12:
-                        plot_appSol = plotApproxVsSol(psi, poly_pow, pde, sigma_px, Iter_outer, display_plots, samples)
-                        plot_appSol.add_surface(psi, torch.diag(Sigmaa), kkk)
-                        plot_appSol.add_curve_pol(psi, torch.diag(Sigmaa), kkk)
-                        plot_appSol.show(iter=progress_perc)
+                #if progress_perc % 1 == 0 or progress_perc == -1 or progress_perc == 120:
+
+                if progress_perc == 50:
+                    gradLr = gradLr/5
+
+
+                if progress_perc == 100:
+                    plot_appSol.make3dAnimationHeatmap()
+                    plot_appSol.add_curve_pol(psi, torch.diag(Sigmaa), kkk)
+                    plot_appSol.show(iter=progress_perc)
+                        #plot_appSol.add_surface(psi, torch.diag(Sigmaa), kkk)
+
 
                 #print("Iteration: ", kk,"/",Iter_outer, " ELBO", elbo, "sigma_r", sigma_r)
                 print("Gradient:",current_grad)
@@ -340,7 +366,8 @@ print("Sample time: ", samples.sample_time)
 #plotSimplePsi_Phi(Iter_total, nele, psi_history[0:nele,:], psi, phi_max_history, t,
 #                  residual_history, grads, gradsNorm, Iter_svi, display_plots, sigma_history) # instead of grads it has only gradsNorm
 plotSimplePsi_Phi(Iter_total, nele, poly_pow+1, psi_history, psi, phi_max_history, t,
-                  residual_history, residuals_history,hist_elbo, phiOptim.relImp, grads, gradsNorm, Iter_svi, display_plots, sigma_history) # instead
+                  residual_history, residuals_history,hist_elbo, histElboMinMax, phiOptim.relImp, grads, gradsNorm,
+                  histPhiGrad, histPsiGrad, histJointGrad, Iter_svi, display_plots, sigma_history) # instead
 plot_phispace.show()
 
 

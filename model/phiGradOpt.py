@@ -114,6 +114,18 @@ class phiOptimizer:
         t2 = torch.matmul(torch.transpose(C, 0, 1), f)
         grad = -(t1 * torch.matmul(C, f) + t1*t2 - 2/t0 ** 4 * torch.matmul(torch.transpose(f, 0, 1), t2) * f)
         return grad
+    def getPhiGrad(self):
+        phi_max = torch.reshape(self.phi_max, (-1, 1))
+        phi_max_old = phi_max
+        phi_max_leaf = phi_max.clone().detach().requires_grad_(True)
+        model_phi = [phi_max_leaf]
+        optimizer = torch.optim.Adam(model_phi, lr=self.gradLr, maximize=True)
+        optimizer.zero_grad()
+        sqRes = self.calcSqRes(model_phi[0], self.calcC(self.Nx_samp_phiOpt))
+        loss = sqRes
+        loss.backward(retain_graph=True)
+        grad = -1/(2*self.pde.sigma_r**2)*model_phi[0].grad
+        return grad
     def phiGradOpt(self):
         phi_max = torch.reshape(self.phi_max, (-1, 1))
         phi_max_old = phi_max

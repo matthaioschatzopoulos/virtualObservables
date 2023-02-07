@@ -31,6 +31,7 @@ from torch.distributions import constraints
 from pyro.infer import Predictive
 import time
 import fenics as df
+import matplotlib.animation as animation
 from textwrap import wrap
 
 def plotGradDeg(grad, deg, smoothing=10, display_plots=False):
@@ -70,8 +71,8 @@ def smooth(y, box_pts):
     return y_smooth
 
 def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_history, t, residual, residuals,
-                      elbo, relImp, grads,
-                      gradsNorm, Iter_svi, display_plots, sigma_history):
+                      elbo, elboMinMax, relImp, grads,
+                      gradsNorm, histPhiGrad, histPsiGrad, jointGradNorm, Iter_svi, display_plots, sigma_history):
 
     plt.figure(1)
     for i in range(0, poly_pow):
@@ -174,28 +175,48 @@ def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_hist
         for i in range(0, np.shape(phiHist)[1]):
             wHist[:, i] = weightfun(phiHist[:, i], ss)
         return torch.from_numpy(wHist)
-    sInterval = torch.linspace(0, 1, 101)
-    phiEvolution = torch.cat(
-        (torch.zeros((1, Iter_outer + 1)), torch.from_numpy(phi_max_history), torch.zeros((1, Iter_outer + 1))), dim=0)
-    phiEvolution = phiEvolution[:, torch.arange(0, phiEvolution.size(dim=1), 20)]
-    iterInterval = torch.linspace(0, phiEvolution.size(dim=1), phiEvolution.size(dim=1))
-    s, Iterations = torch.meshgrid(sInterval, iterInterval, indexing='ij')
+    if True:
+        sInterval = torch.linspace(0, 1, 101)
+        phiEvolution = torch.cat(
+            (torch.zeros((1, Iter_outer + 1)), torch.from_numpy(phi_max_history), torch.zeros((1, Iter_outer + 1))), dim=0)
+        phiEvolution = phiEvolution[:, torch.arange(0, phiEvolution.size(dim=1), 20)]
+        iterInterval = torch.linspace(0, phiEvolution.size(dim=1), phiEvolution.size(dim=1))
+        s, Iterations = torch.meshgrid(sInterval, iterInterval, indexing='ij')
 
 
-    wEvolution = wHist(phiEvolution, sInterval)
-    FenicsMeshPlot(nele, phiEvolution[:, 1])
-    figsurf, surf = plt.subplots(subplot_kw={"projection": "3d"}, num=21)
-    surf.plot_surface(s, Iterations, wEvolution, color='blue', alpha=0.6,
-                             linewidth=0.03, antialiased=False, label='Evolution of weight functions')
-    surf.set_xlabel('Space: s', fontsize=10)
-    surf.set_ylabel('MinMax Iteration: i', fontsize=10)
-    surf.set_zlabel("Weight function: w(s)", fontsize=10)
-    figsurf.suptitle("Evolution of the weight function w(s)", fontsize=16)
-    for ii in range(0, 360, 30):
-        surf.view_init(elev=10., azim=ii)
-        figsurf.savefig("./results/order0Phi/surf%d.png" % ii, dpi=300,
-                             bbox_inches='tight')
+        wEvolution = wHist(phiEvolution, sInterval)
+        #FenicsMeshPlot(nele, phiEvolution[:, 1])
 
+        fig, ax = plt.subplots(num=211)
+        line, = ax.plot(sInterval, wEvolution[:,0])
+        text = ax.text(0.75, 0.85, '')
+        ax.set_ylim(bottom=-1, top=1)
+        ax.set_xlabel('Space: s', fontsize=10)
+        ax.set_ylabel("Weight function: w(s)", fontsize=10)
+        ax.grid(True)
+        fig.suptitle("Evolution of the weight function w(s)", fontsize=14)
+        def animate(i):
+            line.set_ydata(wEvolution[:, 0+i])
+            text.set_text("Iteration = %d" % i)
+            return line,
+
+        tess = np.shape(wEvolution)[1]
+        an1 = animation.FuncAnimation(fig, animate, interval=20, blit=True, save_count=np.shape(wEvolution)[1])
+        an1.save("./results/order0Phi/ani.mp4", dpi=200, )
+        #plt.show()
+        """ 3D Surface Plots of w(s)
+        figsurf, surf = plt.subplots(subplot_kw={"projection": "3d"}, num=21)
+        surf.plot_surface(s, Iterations, wEvolution, color='blue', alpha=0.6,
+                                 linewidth=0.03, antialiased=False, label='Evolution of weight functions')
+        surf.set_xlabel('Space: s', fontsize=10)
+        surf.set_ylabel('MinMax Iteration: i', fontsize=10)
+        surf.set_zlabel("Weight function: w(s)", fontsize=10)
+        figsurf.suptitle("Evolution of the weight function w(s)", fontsize=16)
+        for ii in range(0, 360, 30):
+            surf.view_init(elev=10., azim=ii)
+            figsurf.savefig("./results/order0Phi/surf%d.png" % ii, dpi=300,
+                                 bbox_inches='tight')
+        """
 
     plt.figure(3)
     plt.plot(np.linspace(1, Iter_outer, Iter_outer), np.asarray(residual), '-g')
@@ -232,6 +253,43 @@ def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_hist
     # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
     if display_plots:
         plt.show()
+
+    fig, ax = plt.subplots(2, num=311111)
+    fig.set_figheight(8)
+    fig.set_figwidth(10)
+    fig.subplots_adjust(hspace=0.3, wspace=0.2)
+    for i in range(0, len(elboMinMax)-1):
+        if i % 2 == 0:
+            ax[0].plot(np.asarray([i, i+1]), np.asarray(elboMinMax[i:i+2]), color='g') ### It should be decreasing (SVI)
+            ax[1].plot(np.asarray([i, i + 1]), np.asarray([0, elboMinMax[i+1]-elboMinMax[i]]),
+                     color='g')  ### It should be decreasing (SVI)
+        else:
+            ax[0].plot(np.asarray([i, i+1]), np.asarray(elboMinMax[i:i+2]), color='r') ### It should be increasing (phiGrad)
+            ax[1].plot(np.asarray([i, i + 1]), np.asarray([0, elboMinMax[i+1]-elboMinMax[i]]),
+                     color='r')
+            ### It should be increasing (phiGrad)
+    ax[1].plot([0, len(elboMinMax)], [0, 0], 'k')
+        #plt.scatter(np.linspace(1, len(elboMinMax), len(elboMinMax)), np.asarray(elboMinMax), color=col)
+    # plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 10), '-r')
+    ax[0].grid(True)
+    ax[1].grid(True)
+    ax[0].set_yscale('log')
+    ax[1].set_yscale('symlog', linthresh=10**round(np.log10(ax[0].get_ylim()[0])))
+    # plt.title("Residual convergence  \n" + "\n".join(wrap(title_id)))
+    fig.suptitle("ELBO Convergence")
+    ax[0].set_xlabel("Number of iterations")
+    ax[1].set_xlabel("Number of iterations")
+    ax[0].set_ylabel("ELBO")
+    ax[1].set_ylabel("ELBO Steps")
+    #ax[0].legend(["ELBO"])
+    ax[1].legend(["Minimization of the ELBO", "Maximization of the ELBO"])
+    if not os.path.exists('./results/elbo/'):
+        os.makedirs('./results/elbo/')
+    plt.savefig("./results/elbo/elboMinMax", dpi=300, bbox_inches='tight')
+    # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
+    if display_plots:
+        plt.show()
+
 
     plt.figure(3111)
     plt.plot(np.linspace(1, len(relImp), len(relImp)), np.asarray(relImp), '-m')
@@ -280,6 +338,26 @@ def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_hist
         plt.show()
     #for i in range(0, len(grads[0][0,:])):
     #    plotGradDeg(grads, i, smoothing=1000, display_plots=display_plots)
+
+    plt.figure(41)
+
+    plt.plot(np.linspace(1, len(jointGradNorm), len(jointGradNorm)), abs(np.asarray(jointGradNorm)), '-b')
+    plt.plot(np.linspace(1, len(histPhiGrad), len(histPhiGrad)), abs(np.asarray(histPhiGrad)), '--r')
+    plt.plot(np.linspace(1, len(histPsiGrad), len(histPsiGrad)), abs(np.asarray(histPsiGrad)), '--g')
+    # plt.plot(np.linspace(1, Iter_outer, Iter_outer), smooth(np.asarray(residual), 100), '-r')
+    plt.grid(True)
+    plt.yscale('log')
+    # plt.title("Gradients convergence  \n" + "\n".join(wrap(title_id)))
+    plt.title("Norm of the derivatives $\partial log(L)/ \partial( \psi, \phi)$")
+    plt.xlabel("Number of external iterations")
+    plt.ylabel("$\partial log(L)/ \partial ( \psi, \phi)$")
+    plt.legend(["Joint Derivative", "Derivative wrt $\phi$", "Derivative wrt $\psi$"])
+    if not os.path.exists('./results/grads/'):
+        os.makedirs('./results/grads/')
+    plt.savefig("./results/grads/jointGradNorm", dpi=300, bbox_inches='tight')
+    # plt.savefig("./phi" + label_id, dpi=300, bbox_inches='tight')
+    if display_plots:
+        plt.show()
 
     ### Plot of parameter profile VS Taylor parameter profile ###
     psi = psi.cpu()

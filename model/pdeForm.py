@@ -138,10 +138,11 @@ class pdeFenics:
 
 
 class pdeForm:
-    def __init__(self, nele, mean_px, sigma_px, Nx_samp, lBoundDir=None, rBoundDir=None, lBoundNeu=None, rBoundNeu=None, rhs=None):
+    def __init__(self, nele, mean_px, sigma_px, sigma_r, Nx_samp, lBoundDir=None, rBoundDir=None, lBoundNeu=None, rBoundNeu=None, rhs=None):
         self.nele = nele
         self.mean_px = mean_px
         self.sigma_px = sigma_px
+        self.sigma_r = sigma_r
         self.Nx_samp = Nx_samp
         self.A = torch.zeros((self.nele+1, self.nele+1))
         self.u = torch.zeros((self.nele +1, 1))
