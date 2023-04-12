@@ -33,6 +33,8 @@ from pyro.infer import Predictive
 import time
 from textwrap import wrap
 from utils.times_and_tags import times_and_tags
+import utils.shapeFunctions.hatFunctions as hatFuncs
+
 
 class pdeFenics:
     def __init__(self, nele, mean_px, sigma_px, Nx_samp, lBoundDir=None, rBoundDir=None, lBoundNeu=None, rBoundNeu=None,
@@ -54,6 +56,7 @@ class pdeFenics:
         self.dl = 1 / self.nele
         self.s = torch.linspace(0, 1, nele + 1)
         self.systemRhs = None
+
 
         # %% General setup
         # Create mesh and define function space
@@ -157,6 +160,13 @@ class pdeForm:
         self.dl = 1/self.nele
         self.s = torch.linspace(0, 1, nele+1)
         self.systemRhs = None
+        self.intPoints = 10001
+        self.s_integration = torch.linspace(0, 1, self.intPoints)
+        self.us = hatFuncs.hat(self.s_integration, self.s, self.dl)
+        self.dus = self.lingrad(self.s_integration, self.s, self.dl)
+        self.int_us = torch.trapezoid(self.us, self.s_integration, dim=1)
+        self.int_dusdus = torch.trapezoid(torch.einsum('kz,jz->kjz', self.dus, self.dus), self.s_integration, dim=2)
+
 
         ### Building matrix A ###
 
@@ -217,11 +227,30 @@ class pdeForm:
             self.systemRhs = self.u + self.a - self.f
 
 
-
+    def calcSingleRes(self, x, y, phi):
+        x = torch.exp(x)  ### Form of Cs(x) = exp(x)
+        phi = torch.cat((torch.tensor([[0]]), phi, torch.tensor([[0]])), dim=1)
+        y = torch.cat((torch.tensor([[0]]), y, torch.tensor([[0]])), dim=1)
+        res = - x * torch.matmul(torch.matmul(phi, self.int_dusdus), torch.reshape(y, [-1, 1])) - self.rhs * torch.matmul(phi, self.int_us)
+        res = torch.squeeze(res, dim=1)
+        res = torch.squeeze(res, dim=0)
+        return res
 
     def calcResKernel(self, x, y): # x is scalar and y is 1D or 2D vector
         x = torch.exp(x)  ### Form of Cs(x) = exp(x)
+        start = time.time()
         y = torch.reshape(y, (-1, 1))
+        start = time.time()
+        if self.rhs is None:
+            b = self.u + x * self.a - x * torch.matmul(self.A, y)
+        elif isinstance(self.rhs, int) or isinstance(self.rhs, float):
+            b = self.u + x * self.a - x * torch.matmul(self.A, y) - self.f
+
+        return b
+
+    def calcResKernelSingleInput(self, x): # x is scalar and y is 1D or 2D vector
+        x = torch.exp(x[:,0])  ### Form of Cs(x) = exp(x)
+        y = torch.reshape(x[1:,:], (-1, 1))
         if self.rhs is None:
             b = self.u + x * self.a - x * torch.matmul(self.A, y)
         elif isinstance(self.rhs, int) or isinstance(self.rhs, float):
