@@ -99,7 +99,7 @@ for iii in range(0, 1):
     sigma_history = np.zeros((nele, 1))
     psi_history = torch.reshape(torch.zeros(nele, poly_pow + 1), (-1,1))
     phi_max_history = np.zeros((nele, 1))
-    phi_max = torch.rand((nele, 1), requires_grad=True)
+    phi_max = torch.rand((nele, 1), requires_grad=True)*0.01 + torch.ones(nele,1)
     phi_max = phi_max / torch.linalg.norm(phi_max)
 
 
@@ -127,6 +127,10 @@ for iii in range(0, 1):
         guide = samples.executeGuideDelta
     elif samples.surgtType == 'Mvn':
         guide = samples.executeGuideMvn
+    elif samples.surgtType == 'DeltaNoiseless':
+        if Nx_samp != samples.data_x.size(dim=0):
+            print("Major Error. Validation Mode isn't correct")
+        guide = samples.executeGuideDeltaNoiseless
     plot_phispace = plotPhiVsSpace(torch.squeeze(phi_max, 1), nele, Iter_total, display_plots, row=7, col=5)
     plot_appSol = plotApproxVsSol(samples.psii[0], poly_pow, pde, sigma_px, Iter_outer, display_plots, samples)
     kkk = 0
@@ -199,11 +203,20 @@ for iii in range(0, 1):
         svi_time = 0
         rest_time = 0
         tsum = 0
-        plot_appSol.calcSurf(samples.psii[0], torch.diag(samples.psii[1]), kkk)
-        phi_max = phiOptim.phiGradOpt()
+
 
 
         for i in range(num_iters):
+
+            if (i) % IterSvi == 0:
+            #if i > IterSvi+1:
+                #if histPsiGrad[-1]/histPhiGrad[-1] < 50:
+                ### Phi Update ###
+                plot_appSol.calcSurf(samples.psii[0], torch.diag(samples.psii[1]), kkk)
+                phi_max = phiOptim.phiGradOpt()
+                ### Phi Update ###
+
+
             ### sigma_r scheduler ###
             #if (i+1) % (Iter_total*0.51) == 0:
           #      sigma_r = sigma_r/math.sqrt(math.sqrt(10))
@@ -228,15 +241,15 @@ for iii in range(0, 1):
                                               torch.tensor(sigma_r), torch.tensor(sigma_w))
 
 
-            if i == 0:
+            if (i) % IterSvi == 0:
                 histPhiGrad.append(torch.linalg.norm(phiGradVal.detach().cpu()))
                 histPsiGrad.append(torch.linalg.norm(current_grad[0].detach().cpu())) #Derivates only wrt psi[0] not with sigma
                 histJointGrad.append(torch.linalg.norm(torch.cat((phiGradVal, torch.reshape(current_grad[0], (-1, 1))), 0)).numpy().item())
 
 
-            if i == 0:
+            if (i) % IterSvi == 0:
                 histElboMinMax.append(elbo)
-            elif i == (Iter_svi - 1):
+            elif (i+1) % IterSvi  == 0:
                 histElboMinMax.append(elbo)
             svi_time = svi_time + time.time() - temp
             temp = time.time()
@@ -326,8 +339,8 @@ for iii in range(0, 1):
                 progress_perc = progress_perc + 1
                 #if progress_perc % 1 == 0 or progress_perc == -1 or progress_perc == 120:
 
-                if progress_perc == 50:
-                    gradLr = gradLr/5
+                if progress_perc == 99:
+                    lr = lr/10
 
 
                 if progress_perc == 100:
@@ -339,6 +352,7 @@ for iii in range(0, 1):
 
                 #print("Iteration: ", kk,"/",Iter_outer, " ELBO", elbo, "sigma_r", sigma_r)
                 print("Gradient:",current_grad)
+                print("Vector phi: ", phi_max)
                 print("Parameters psi:",psi)
                 print("Other stuff time analysis: ", tsum)
                 print("Model stuff time analysis: ", samples.model_time)
@@ -346,7 +360,7 @@ for iii in range(0, 1):
                     print("Variance deviation: ", Sigmaa)
                 print("Progress: ", progress_perc, "/", 100, " ELBO", elbo, "Residual",
                       min(residual_history[-int(Iter_outer / 100):]), "sigma_r", sigma_r)
-                plot_phispace.add_curve(phi_max, kkk)
+                #plot_phispace.add_curve(phi_max, kkk)
 
 
 

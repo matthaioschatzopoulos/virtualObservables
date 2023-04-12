@@ -34,6 +34,8 @@ import time
 from textwrap import wrap
 from utils.times_and_tags import times_and_tags
 
+
+
 class pdeFenics:
     def __init__(self, nele, mean_px, sigma_px, Nx_samp, lBoundDir=None, rBoundDir=None, lBoundNeu=None, rBoundNeu=None,
                  rhs=None):
@@ -54,6 +56,7 @@ class pdeFenics:
         self.dl = 1 / self.nele
         self.s = torch.linspace(0, 1, nele + 1)
         self.systemRhs = None
+
 
         # %% General setup
         # Create mesh and define function space
@@ -157,6 +160,13 @@ class pdeForm:
         self.dl = 1/self.nele
         self.s = torch.linspace(0, 1, nele+1)
         self.systemRhs = None
+        self.intPoints = 10001
+        self.s_integration = torch.linspace(0, 1, self.intPoints)
+        self.us = self.lin(self.s_integration, self.s, self.dl)
+        self.dus = self.lingrad(self.s_integration, self.s, self.dl)
+        self.int_us = torch.trapezoid(self.us, self.s_integration, dim=1)
+        self.int_dusdus = torch.trapezoid(torch.einsum('kz,jz->kjz', self.dus, self.dus), self.s_integration, dim=2)
+
 
         ### Building matrix A ###
 
@@ -216,12 +226,57 @@ class pdeForm:
         elif isinstance(self.rhs, int) or isinstance(self.rhs, float):
             self.systemRhs = self.u + self.a - self.f
 
+    def lin(self, x, x_node, h):
+        # Reshape x and x_node to enable broadcasting
+        x = x.unsqueeze(-1)
+        x_node = x_node.view(-1, 1, 1)
 
+        # Compute boolean masks
+        mask1 = (x >= x_node - h) & (x <= x_node)
+        mask2 = (x < x_node - h) | (x > x_node + h)
 
+        # Compute intermediate tensor
+        out1 = torch.where(mask1, (x - (x_node - h)) / h, 1 - (x - x_node) / h)
+
+        # Apply final mask and reshape to get output matrix
+        return torch.reshape(torch.where(mask2, torch.zeros_like(out1), out1), [x_node.size(dim=0), -1])
+
+    def lingrad(self, x, x_node, h):
+        # Reshape x and x_node to enable broadcasting
+        x = x.unsqueeze(-1)
+        x_node = x_node.view(-1, 1, 1)
+
+        # Compute boolean masks
+        mask1 = (x >= x_node - h) & (x <= x_node)
+        mask2 = (x < x_node - h) | (x > x_node + h)
+
+        # Compute intermediate tensor
+        out1 = torch.where(mask1, 1 / h, -1 / h)
+
+        # Apply final mask and reshape to get output matrix
+        return torch.reshape(torch.where(mask2, torch.zeros_like(out1), out1), [x_node.size(dim=0), -1])
+    def calcSingleRes(self, x, y, phi): # Big Disclamer for investigation the numerical and analytical A isn't the same!
+        start_time = time.time()
+        x = torch.exp(x)  ### Form of Cs(x) = exp(x)
+        phi = torch.cat((torch.tensor([[0]]), phi, torch.tensor([[0]])), dim=1)
+        y = torch.cat((torch.tensor([[0]]), y, torch.tensor([[0]])), dim=1)
+        end_time = time.time() - start_time
+        res = torch.matmul(phi, - x * torch.matmul(self.int_dusdus, torch.reshape(y, [-1, 1])) - self.rhs * self.int_us)
+        return res
 
     def calcResKernel(self, x, y): # x is scalar and y is 1D or 2D vector
         x = torch.exp(x)  ### Form of Cs(x) = exp(x)
         y = torch.reshape(y, (-1, 1))
+        if self.rhs is None:
+            b = self.u + x * self.a - x * torch.matmul(self.A, y)
+        elif isinstance(self.rhs, int) or isinstance(self.rhs, float):
+            b = self.u + x * self.a - x * torch.matmul(self.A, y) - self.f
+
+        return b
+
+    def calcResKernelSingleInput(self, x): # x is scalar and y is 1D or 2D vector
+        x = torch.exp(x[:,0])  ### Form of Cs(x) = exp(x)
+        y = torch.reshape(x[1:,:], (-1, 1))
         if self.rhs is None:
             b = self.u + x * self.a - x * torch.matmul(self.A, y)
         elif isinstance(self.rhs, int) or isinstance(self.rhs, float):

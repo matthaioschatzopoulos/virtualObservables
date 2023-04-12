@@ -8,97 +8,90 @@ import os
 import matplotlib.animation as animation
 import torch
 
-"""
-def plotApproxVsTrueSol(psi, poly_pow, nele, label_id):
-    fig = plt.figure()
+Strue, Xtrue = torch.meshgrid(torch.linspace(0, 1, 101), torch.linspace(-1, 1, 101), indexing='ij')
+yTrueSurf = torch.zeros((Strue.size(dim=0), Xtrue.size(dim=1)))
 
-    fig.set_figheight(10)
-    fig.set_figwidth(15)
-    fig.subplots_adjust(hspace=0.4, wspace=0.3)
-    xp = np.linspace(-3, 3, 101)
-    xvec = np.zeros((poly_pow+1, 1))
-    for j in range(0, nele):
-        ax = fig.add_subplot(nele // math.ceil(np.sqrt(nele)) + 1, math.ceil(np.sqrt(nele)), j + 1)
-        ax.plot(xp, np.exp(-xp))
-        yp = np.zeros((101, 1))
-        for i in range(0, 101):
-            for k in range(0, poly_pow+1):
-                xvec[k, 0] = xp[i]**k
-            psi_node = np.reshape(psi[j, :], (1, -1))
-            yp[i, 0] = np.matmul(psi_node, xvec)
-        ax.plot(xp, yp)
-        plt.grid(True)
-        plt.title("Solution for node " + str(j+1))
-        plt.xlabel("x")
-        plt.ylabel("y")
-        plt.legend(["True Solution", "Test Solution"])
-    plot_title = "Plot of Approximate Vs True Solution \n" + "\n".join(wrap(label_id))
-    fig.suptitle(plot_title, fontsize=16)
-    plt.savefig("./figs/"+label_id, dpi=300, bbox_inches='tight')
-    fig.tight_layout()
-    plt.show()
-"""
+figsurf, surf = plt.subplots(2)
+figsurf.set_figheight(7)
+figsurf.set_figwidth(7)
+real_nele=21
+S = torch.linspace(0, 1, real_nele + 1)
+X = torch.linspace(-1, 1, 101)
+S, X = torch.meshgrid(S, X, indexing='ij')
+#text = self.surf.text(0.75, 0.85, 0.85, 'test')
+# psi = torch.transpose(psi, 0, 1)
 
-class plotApproxVsTrueSol:
-    def __init__(self, psi, poly_pow, nele, sigma_px, label_id):
-        self.psi = psi
-        self.poly_pow = poly_pow
-        self.nele = nele
-        self.label_id = label_id
-        nelsq = np.sqrt(self.nele)
-        self.fig, self.ax = plt.subplots(self.nele // math.ceil(nelsq) + 1, math.ceil(nelsq))
-        self.fig.set_figheight(10)
-        self.fig.set_figwidth(15)
-        self.fig.subplots_adjust(hspace=0.4, wspace=0.3)
-        #self.xp = np.linspace(-1, 1, 101)
-        self.xp = np.linspace(-1 * sigma_px, 1 * sigma_px, 101)
-        #self.xp = np.linspace(-3*sigma_px, 3*sigma_px, 101)
-        counter =0
-        self.leg_tuple = ("True Solution",)
-        for j in range(0, self.nele // math.ceil(nelsq) + 1):
-            for k in range(0, math.ceil(nelsq)):
-                self.ax[j, k].plot(self.xp, 0.2*(counter+1)*np.exp(-self.xp), linewidth = 5)
-                self.ax[j, k].grid(True)
-                self.ax[j, k].set_title("Solution for node " + str(counter+1))
-                self.ax[j, k].set_xlabel("x")
-                self.ax[j, k].set_ylabel("y")
-                self.ax[j, k].set_xlim([min(self.xp), max(self.xp)])
-                self.ax[j, k].set_ylim([min(0.2*(counter+1)*np.exp(-self.xp)), max(0.2*(counter+1)*np.exp(-self.xp))])
-                #self.ax[j, k].set_ylim([0, 1])
-                counter = counter + 1
-                if counter == self.nele:
-                    break
 
-    def add_curve(self, psi, iterat):
-        nelsq = np.sqrt(self.nele)
-        j = 0
-        self.leg_tuple = self.leg_tuple + ("Approx. Solution, iter = " + str(iterat),)
-        for jj in range(0, self.nele // math.ceil(nelsq) + 1):
-            for kk in range(0, math.ceil(nelsq)):
-                yp = np.zeros((101, 1))
-                xvec = np.zeros((self.poly_pow + 1, 1))
-                for i in range(0, 101):
-                    for k in range(0, self.poly_pow + 1):
-                        xvec[k, 0] = self.xp[i] ** k
-                    psi_node = np.reshape(psi[j, :], (1, -1))
-                    yp[i, 0] = np.matmul(psi_node, xvec)
-                #nelsq = np.sqrt(self.nele)
-                #self.ax = self.fig.add_subplot(self.nele // math.ceil(nelsq) + 1, math.ceil(nelsq), j + 1)
-                self.ax[jj, kk].plot(self.xp, yp)
-                #self.ax[jj, kk].legend(("Test Solution"+str(j),))
-                self.ax[jj, kk].legend(self.leg_tuple)
-                j = j + 1
-                if j == self.nele:
-                    break
-            if j == self.nele:
-                break
+def polynomial(x):
+    y = torch.zeros(4 + 1, 1)
+    for k in range(0, 4 + 1):
+        y[k, 0] = x ** k
+    return y
 
-    def show(self, title_id):
-        plot_title = "Plot of Approximate Vs True Solution \n" + "\n".join(wrap(self.label_id))
-        self.fig.suptitle(plot_title, fontsize=16)
-        self.fig.savefig("./" + self.label_id, dpi=300, bbox_inches='tight')
-        #self.fig.tight_layout()
-        self.fig.show()
+def calcSurf(psi, var, iterat):
+    real_nele = 21
+    conf_inter = 1
+    S = torch.linspace(0, 1, real_nele + 1)
+    X = torch.linspace(-1, 1, 101)
+    # self.S, self.X = torch.meshgrid(S, X, indexing='ij')
+    yMean = torch.zeros((real_nele + 1, X.size(dim=0)))
+    yHigh = torch.zeros((real_nele + 1, X.size(dim=0)))
+    yLow = torch.zeros((real_nele + 1, X.size(dim=0)))
+    # psi = torch.transpose(psi, 0, 1)
+    psi = psi.cpu()
+    #var = torch.diag(var)
+    var = torch.reshape(var, (-1, 1))
+    var = var.detach().cpu().numpy()
+
+    for kkk in range(1, real_nele):
+        for iii in range(0, X.size(dim=0)):
+            polvecx = polynomial(X[iii])
+            tess = torch.matmul(psi, polvecx)
+            yMean[1:real_nele, iii] = torch.squeeze(torch.matmul(psi, polvecx), dim=1)
+            yHigh[1:real_nele, iii] = yMean[1:real_nele, iii] + conf_inter * torch.sqrt(
+                torch.from_numpy(var[kkk - 1, :]))
+            yLow[1:real_nele, iii] = yMean[1:real_nele, iii] - conf_inter * torch.sqrt(
+                torch.from_numpy(var[kkk - 1, :]))
+    yMean[0, :] = torch.ones(X.size(dim=0)) * 0
+    yHigh[0, :] = torch.ones(X.size(dim=0)) * 0
+    yLow[0, :] = torch.ones(X.size(dim=0)) * 0
+    yMean[-1, :] = torch.ones(X.size(dim=0)) * 0
+    yHigh[-1, :] = torch.ones(X.size(dim=0)) * 0
+    yLow[-1, :] = torch.ones(X.size(dim=0)) * 0
+    return yMean, yHigh
+
+psi = torch.tensor([[ 0.0066,  0.0039, -0.0020,  0.0041,  0.0032],
+        [ 0.0086,  0.0063,  0.0042,  0.0027,  0.0042],
+        [ 0.0128,  0.0064,  0.0109,  0.0069,  0.0101],
+        [ 0.0090,  0.0017,  0.0065,  0.0075,  0.0080],
+        [ 0.0111,  0.0043,  0.0141,  0.0065,  0.0096],
+        [ 0.0095,  0.0082,  0.0106,  0.0084,  0.0108],
+        [ 0.0074,  0.0109,  0.0096,  0.0048,  0.0095],
+        [ 0.0083,  0.0056,  0.0049,  0.0090,  0.0070],
+        [ 0.0063,  0.0082,  0.0057,  0.0017,  0.0067],
+        [ 0.0072,  0.0079,  0.0069,  0.0094,  0.0039],
+        [ 0.0038,  0.0061,  0.0085,  0.0110,  0.0033],
+        [ 0.0059,  0.0063,  0.0122,  0.0064,  0.0052],
+        [ 0.0074,  0.0036,  0.0045,  0.0098,  0.0080],
+        [ 0.0098,  0.0075,  0.0093,  0.0029,  0.0074],
+        [ 0.0117,  0.0051,  0.0080,  0.0072,  0.0100],
+        [ 0.0121,  0.0054,  0.0064,  0.0039,  0.0036],
+        [ 0.0164,  0.0036,  0.0076,  0.0095,  0.0047],
+        [ 0.0113, -0.0024,  0.0060,  0.0053, -0.0009],
+        [ 0.0093,  0.0011,  0.0020,  0.0007,  0.0016],
+        [ 0.0061, -0.0043,  0.0021,  0.0033, -0.0008]])
+var = torch.tensor([1.5422e-05, 1.4528e-05, 1.4787e-05, 1.4834e-05, 1.5193e-05, 1.5241e-05,
+        1.5314e-05, 1.5287e-05, 1.4747e-05, 1.4848e-05, 1.4967e-05, 1.5183e-05,
+        1.5473e-05, 1.5604e-05, 1.5596e-05, 1.5098e-05, 1.4681e-05, 1.4560e-05,
+        1.4380e-05, 1.5530e-05])
+iterat = 1000
+yMean, yHigh = calcSurf(psi, var, iterat)
+sigm = torch.diag(yHigh - yMean)
+
+
+
+
+print("end")
 
 
 class plotApproxVsSol:
