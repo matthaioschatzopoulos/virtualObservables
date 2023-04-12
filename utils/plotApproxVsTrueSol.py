@@ -359,7 +359,7 @@ class plotApproxVsSol:
             return surfM, surfT
 
         an1 = animation.FuncAnimation(self.figsurf, animate, interval=20, blit=True, save_count=(len(self.yMeanHist)-1))
-        an1.save("./results//approxVsTrueSol/ani.mp4", dpi=300)
+        an1.save("./results/approxVsTrueSol/ani.mp4", dpi=300)
         plt.show()
     def add_surface(self, psi, var, iterat):
         real_nele = self.pde.nele

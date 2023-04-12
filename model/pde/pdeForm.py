@@ -1,39 +1,16 @@
 ### Importing Libraries ###
 import numpy as np
-import math
-import random
-import pandas as pd
-import sys
-from numpy.linalg import inv
-import matplotlib.pyplot as plt
 
 ### Import Pyro/Torch Libraries ###
-import argparse
 import torch
-import torch.nn as nn
-from torch.nn.functional import normalize
 
-import pyro
-import pyro.distributions as dist
-from pyro.infer import SVI, JitTrace_ELBO, Trace_ELBO, Predictive, TraceGraph_ELBO
-from pyro.infer.autoguide import AutoMultivariateNormal, AutoDelta
-from pyro.optim import Adam
-from pyro.nn import PyroSample
-from torch import nn
-from pyro.nn import PyroModule
-import pyro.optim as optim
 import os
 import fenics as df
-import logging
-from torch.distributions import constraints
 
 smoke_test = ('CI' in os.environ)
-from torch.distributions import constraints
-from pyro.infer import Predictive
 import time
-from textwrap import wrap
 from utils.times_and_tags import times_and_tags
-import utils.shapeFunctions.hatFunctions as hatFuncs
+import model.pde.shapeFunctions.hatFunctions as hatFuncs
 
 
 class pdeFenics:
@@ -163,7 +140,7 @@ class pdeForm:
         self.intPoints = 10001
         self.s_integration = torch.linspace(0, 1, self.intPoints)
         self.us = hatFuncs.hat(self.s_integration, self.s, self.dl)
-        self.dus = self.lingrad(self.s_integration, self.s, self.dl)
+        self.dus = hatFuncs.hatGrad(self.s_integration, self.s, self.dl)
         self.int_us = torch.trapezoid(self.us, self.s_integration, dim=1)
         self.int_dusdus = torch.trapezoid(torch.einsum('kz,jz->kjz', self.dus, self.dus), self.s_integration, dim=2)
 
@@ -226,7 +203,30 @@ class pdeForm:
         elif isinstance(self.rhs, int) or isinstance(self.rhs, float):
             self.systemRhs = self.u + self.a - self.f
 
-
+    def cWeightFunc(self, phi, us):
+        """
+        :param phi: The coefficients of the weighting functions
+        :param us: A multidimensional tensor repsresenting the shape function, the 1st dim is always the one
+        to be multiplied with the dim of phi
+        :return: The weight function w(s)
+        """
+        return torch.matmul(torch.reshape(phi, [1, -1]), us)
+    def cTrialFunc(self, y, us):
+        """
+        :param y: The coefficients of the Trial/Solution Function
+        :param us: A multidimensional tensor repsresenting the shape function, the 1st dim is always the one
+        to be multiplied with the dim of y
+        :return: The Trial/Solution function y(s)
+        """
+        return torch.matmul(torch.reshape(y, [1, -1]), us)
+    def cParInputFunc(self, x, us):
+        """
+        :param x: The coefficients of the Parametric Input function c(x,s), that exists in the strong form.
+        :param us: A multidimensional tensor repsresenting the shape function, the 1st dim is always the one
+        to be multiplied with the dim of x
+        :return: The Parametric Input function c(x,s)
+        """
+        return torch.matmul(torch.reshape(x, [1, -1]), us)
     def calcSingleRes(self, x, y, phi):
         x = torch.exp(x)  ### Form of Cs(x) = exp(x)
         phi = torch.cat((torch.tensor([[0]]), phi, torch.tensor([[0]])), dim=1)
@@ -235,6 +235,14 @@ class pdeForm:
         res = torch.squeeze(res, dim=1)
         res = torch.squeeze(res, dim=0)
         return res
+
+    def calcSingleResGeneral(self, x, y, phi):
+        x = torch.exp(x)  ### Form of Cs(x) = exp(x)
+        phi = torch.cat((torch.tensor([[0]]), phi, torch.tensor([[0]])), dim=1)
+        y = torch.cat((torch.tensor([[0]]), y, torch.tensor([[0]])), dim=1)
+        res = torch.trapezoid(- x * torch.mul(self.cWeightFunc(phi, self.dus), self.cTrialFunc(y, self.dus)) \
+              - self.rhs * self.cWeightFunc(phi, self.us), self.s_integration, dim=1)
+        return torch.squeeze(res, dim=0)
 
     def calcResKernel(self, x, y): # x is scalar and y is 1D or 2D vector
         x = torch.exp(x)  ### Form of Cs(x) = exp(x)

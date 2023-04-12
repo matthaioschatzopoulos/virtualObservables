@@ -30,7 +30,7 @@ smoke_test = ('CI' in os.environ)
 from torch.distributions import constraints
 from pyro.infer import Predictive
 import time
-import fenics as df
+#import fenics as df
 import matplotlib.animation as animation
 from textwrap import wrap
 
