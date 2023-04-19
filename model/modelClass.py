@@ -482,7 +482,7 @@ class modelPolynomial:
         self.pde = pde
         self.allRes = allRes
         self.surgtType = surgtType
-        self.nele = pde.effective_nele
+        self.nele = pde.nele
         self.mean_px = pde.mean_px
         self.sigma_px = pde.sigma_px
         self.Nx_samp = pde.Nx_samp
@@ -510,7 +510,7 @@ class modelPolynomial:
                                                                                  0.6010709401081 * 0.125],
              [1 * 3 / 32, -1.4195196367299 * 3 / 32, 0.6010709401081 * 3 / 32]])
 
-        self.psi_init = torch.rand(self.nele, poly_pow + 1) * 0.01  # Initialization of psi
+        self.psi_init = torch.rand(self.pde.NofShFuncs, poly_pow + 1) * 0.01  # Initialization of psi
 
 
         """
@@ -574,7 +574,7 @@ class modelPolynomial:
                     [1.3228e-02, -5.1193e-03, 7.7156e-03, -7.8512e-03, -1.7013e-03]])
             """
         self.readData = 0
-        self.xPoolSize = 11
+        self.xPoolSize = 3
         ### Input Data Generation ###
         if self.readData == 1:
             print("Pool of input data x was read from file.")
@@ -585,13 +585,14 @@ class modelPolynomial:
             print(self.data_x)
             print(torch.exp(-self.data_x))
             self.data_x = torch.linspace(-1, 1, self.xPoolSize)
+            #self.data_x = torch.tensor([0.])
         """
             self.psi_init= torch.tensor([[ 0.0822, -0.0846,  0.0489],
             [ 0.1196, -0.1376,  0.0576],
             [ 0.1226, -0.1307,  0.0732],
             [ 0.0778, -0.0930,  0.0460]])
             """
-        self.Sigmaa_init = torch.eye(self.nele, self.nele) / 10 ** stdInit  # 10**-8 is good with sigma r = 1
+        self.Sigmaa_init = torch.eye(self.pde.NofShFuncs, self.pde.NofShFuncs) / 10 ** stdInit  # 10**-8 is good with sigma r = 1
         self.Sigmaa_init = torch.diag(self.Sigmaa_init, 0)
         self.psii = [self.psi_init, self.Sigmaa_init]
         self.temp_res = []
@@ -629,12 +630,12 @@ class modelPolynomial:
             #x = pyro.sample("x", dist.Normal(loc=self.mean_px, scale=self.sigma_px))
             ii = pyro.sample("ii", dist.Categorical(probs=torch.ones(self.xPoolSize) / self.xPoolSize))
             x = self.data_x[ii]
-        y = pyro.sample("y", dist.MultivariateNormal(loc=torch.zeros((1, self.nele)),
-                                                     covariance_matrix=sigma_w ** 2 * torch.eye(self.nele, self.nele)))
+        y = pyro.sample("y", dist.MultivariateNormal(loc=torch.zeros((1, self.pde.NofShFuncs)),
+                                                     covariance_matrix=sigma_w ** 2 * torch.eye(self.pde.NofShFuncs, self.pde.NofShFuncs)))
 
-        phi_max = torch.reshape(phi_max, (1, -1))
+        #phi_max = torch.reshape(phi_max, (1, -1))
+        """
         res1 = self.pde.calcSingleRes(x, y, phi_max)
-        res2 = self.pde.calcSingleResGeneral(x, y, phi_max)
         b = self.pde.calcResKernel(x, y)
         res = torch.matmul(phi_max, b)
         # rwmax2 = torch.matmul(torch.transpose(phi_max, 0, 1), c)
@@ -642,6 +643,8 @@ class modelPolynomial:
         res = torch.squeeze(res, 0)
         # rwmax2 = torch.squeeze(rwmax2, 0)
         res = res
+        """
+        res = self.pde.calcSingleResGeneral(x, torch.reshape(y, [-1]), phi_max)
 
         #self.full_temp_res.append(torch.linalg.norm(b.clone().detach()))
         # self.temp_res.append(torch.linalg.norm(b.clone().detach()))
@@ -711,6 +714,17 @@ class modelPolynomial:
         y = pyro.sample("y", dist.MultivariateNormal(loc=mq_final,
                                                      covariance_matrix=Sigmam))
         self.guide_time = self.guide_time + time.time() - t0
+
+    def samplePosteriorMean(self, x):
+        polvecx = self.polynomial(x)
+        y_mean_x1 = torch.matmul(self.psii[0], polvecx)
+        return torch.reshape(y_mean_x1, [-1])
+
+    def calcPosteriorMeanMulInputs(self, x):
+        yList = []
+        for i in range(0, x.size(dim=0)):
+            yList.append(self.samplePosteriorMean(x[i]))
+        return torch.stack(yList)
 
     def sampleResExpValidation(self):
         # iiii = pyro.sample("iiii", dist.Categorical(probs=torch.ones(self.xPoolSize) / self.xPoolSize))

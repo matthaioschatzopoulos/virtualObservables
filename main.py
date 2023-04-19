@@ -20,7 +20,8 @@ from model.phiGradOpt import phiOptimizer
 from utils.plotBasic import plotSimplePsi_Phi, plotPhiVsSpace
 from model.modelClass import modelPolynomial
 from utils.plotApproxVsTrueSol import plotApproxVsSol
-from model.pde.pdeForm import pdeForm
+#from model.pde.pdeForm import pdeForm
+from model.pde.pdeForm2D import pdeForm
 from utils.times_and_tags import times_and_tags
 from input import *
 
@@ -51,14 +52,15 @@ print(device)
 os.system('cp ./input.py ./results/inputParams.txt')
 
 ### Definition and Form of the PDE ###
-pde = pdeForm(nele, mean_px, sigma_px, sigma_r, Nx_samp, lBoundDir=lBoundDir, rBoundDir=rBoundDir,
-              lBoundNeu=lBoundNeu, rBoundNeu=rBoundNeu, rhs=rhs)
+pde = pdeForm(nele, mean_px, sigma_px, sigma_r, Nx_samp, [bnd_low, bnd_up, bnd_right, bnd_left], rhs=rhs)
+"""
 A = pde.A
 u = pde.u
 nele = pde.effective_nele
 real_nele = pde.nele
 condition_number = torch.linalg.cond(A)
-
+"""
+"""
 solll = torch.matmul(torch.linalg.inv(A), pde.systemRhs)
 print(A)
 print(pde.systemRhs)
@@ -67,6 +69,7 @@ analsol = torch.linspace(0, 1, nele+1)**2/2 + torch.linspace(0, 1, nele+1)/2+1
 analsol2 = torch.linspace(0, 1, real_nele+1)**2/2 + torch.linspace(0, 1, real_nele+1)/2+1
 analsol2 = torch.linspace(0, 1, real_nele+1)**2/2 - torch.linspace(0, 1, real_nele+1)/2 +1
 bbb = torch.matmul(A, torch.reshape(analsol[1:], (-1, 1)))
+"""
 ####### Initialization of Parameters #######
 
 for iii in range(0, 1):
@@ -76,9 +79,9 @@ for iii in range(0, 1):
 
 
     sigma_history = np.zeros((nele, 1))
-    psi_history = torch.reshape(torch.zeros(nele, poly_pow + 1), (-1,1))
-    phi_max_history = np.zeros((nele, 1))
-    phi_max = torch.rand((nele, 1), requires_grad=True)*0.01 + torch.ones(nele,1)
+    psi_history = torch.reshape(torch.zeros(pde.NofShFuncs, poly_pow + 1), (-1,1))
+    phi_max_history = np.zeros((pde.NofShFuncs, 1))
+    phi_max = torch.rand((pde.NofShFuncs, 1), requires_grad=True)*0.01 + torch.ones(pde.NofShFuncs, 1)
     phi_max = phi_max / torch.linalg.norm(phi_max)
 
 
@@ -110,7 +113,7 @@ for iii in range(0, 1):
         if Nx_samp != samples.data_x.size(dim=0):
             print("Major Error. Validation Mode isn't correct")
         guide = samples.executeGuideDeltaNoiseless
-    plot_phispace = plotPhiVsSpace(torch.squeeze(phi_max, 1), nele, Iter_total, display_plots, row=7, col=5)
+    #plot_phispace = plotPhiVsSpace(torch.squeeze(phi_max, 1), nele, Iter_total, display_plots, row=7, col=5)
     plot_appSol = plotApproxVsSol(samples.psii[0], poly_pow, pde, sigma_px, Iter_outer, display_plots, samples)
     kkk = 0
 
@@ -191,7 +194,7 @@ for iii in range(0, 1):
             #if i > IterSvi+1:
                 #if histPsiGrad[-1]/histPhiGrad[-1] < 50:
                 ### Phi Update ###
-                plot_appSol.calcSurf(samples.psii[0], torch.diag(samples.psii[1]), kkk)
+                #plot_appSol.calcSurf(samples.psii[0], torch.diag(samples.psii[1]), kkk) # It was on in the 1D example
                 phi_max = phiOptim.phiGradOpt()
                 ### Phi Update ###
 
@@ -223,7 +226,7 @@ for iii in range(0, 1):
             if (i) % IterSvi == 0:
                 histPhiGrad.append(torch.linalg.norm(phiGradVal.detach().cpu()))
                 histPsiGrad.append(torch.linalg.norm(current_grad[0].detach().cpu())) #Derivates only wrt psi[0] not with sigma
-                histJointGrad.append(torch.linalg.norm(torch.cat((phiGradVal, torch.reshape(current_grad[0], (-1, 1))), 0)).numpy().item())
+                histJointGrad.append(torch.linalg.norm(torch.cat((phiGradVal, torch.reshape(current_grad[0], [-1])), 0)).numpy().item())
 
 
             if (i) % IterSvi == 0:
@@ -321,13 +324,13 @@ for iii in range(0, 1):
                 if progress_perc == 99:
                     lr = lr/10
 
-
+                """
                 if progress_perc == 100:
                     plot_appSol.make3dAnimationHeatmap()
                     plot_appSol.add_curve_pol(psi, torch.diag(Sigmaa), kkk)
                     plot_appSol.show(iter=progress_perc)
                         #plot_appSol.add_surface(psi, torch.diag(Sigmaa), kkk)
-
+                """
 
                 #print("Iteration: ", kk,"/",Iter_outer, " ELBO", elbo, "sigma_r", sigma_r)
                 print("Gradient:",current_grad)
@@ -361,11 +364,19 @@ print("Sample time: ", samples.sample_time)
 plotSimplePsi_Phi(Iter_total, nele, poly_pow+1, psi_history, psi, phi_max_history, t,
                   residual_history, residuals_history,hist_elbo, histElboMinMax, phiOptim.relImp, grads, gradsNorm,
                   histPhiGrad, histPsiGrad, histJointGrad, Iter_svi, display_plots, sigma_history) # instead
-plot_phispace.show()
+#plot_phispace.show()
+x_testing = torch.tensor([-1, 0, 1])
+pde.plotError(samples.calcPosteriorMeanMulInputs(x_testing))
+pde.plotSolution(torch.reshape(samples.samplePosteriorMean(-1.), [-1]))
+pde.plotSolution(torch.reshape(samples.samplePosteriorMean(0.), [-1]))
+pde.plotSolution(torch.reshape(samples.samplePosteriorMean(1.), [-1]))
+pde.plotTrueSolution()
 
-
-
-
+pde.plotTrueSolution()
+err, meanTrue, meanPred = pde.plotErrorMetrics(samples.calcPosteriorMeanMulInputs(x_testing))
+print("Relative Error", err)
+print("Mean True", meanTrue)
+print("Mean Predicted", meanPred)
 test = 1
 #for i in range(0, len(grads)):
 #    print("Iteration",i, " : ", grads[i])

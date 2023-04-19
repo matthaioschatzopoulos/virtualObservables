@@ -109,7 +109,7 @@ class plotApproxVsSol:
         self.psi = psi
         self.display_plots = display_plots
         self.poly_pow = poly_pow
-        self.nele = pde.effective_nele
+        self.nele = pde.nele
         self.tot_nele = pde.nele
         self.conf_inter = 2
         self.conf_inter_px = 1

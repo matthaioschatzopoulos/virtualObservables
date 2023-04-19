@@ -44,7 +44,7 @@ class phiOptimizer:
         self.gradLr = gradLr
         self.epoch = Iter_grad
         self.powIterTol = powIterTol
-        self.nele = pde.effective_nele
+        self.nele = pde.nele
         self.mean_px = pde.mean_px
         self.sigma_px = pde.sigma_px
         self.Nx_samp = pde.Nx_samp
@@ -53,7 +53,7 @@ class phiOptimizer:
         self.y = torch.zeros(self.Nx_samp_phi, self.nele)
         self.Nx_samp = self.Nx_samp
         self.Nx_counter = 0
-        self.phi_max = torch.rand(self.nele)*0.01+torch.ones(self.nele)
+        self.phi_max = torch.rand(self.pde.NofShFuncs)*0.01+torch.ones(self.pde.NofShFuncs)
         self.phi_max = self.phi_max/torch.linalg.norm(self.phi_max)
         self.poly_pow = poly_pow
         self.temp_res = torch.rand(self.Nx_samp).tolist()
@@ -101,6 +101,23 @@ class phiOptimizer:
             b = self.pde.calcResKernel(x[jj], y[jj, :])
             C = C + torch.matmul(torch.reshape(b, (-1, 1)), torch.reshape(b, (1, -1)))
         return C / x.size(dim=0)
+
+    def calcCGeneral(self, Nx, phi):
+        res = 0.
+        if self.model.surgtType == 'Delta' and self.validationMode is False:
+            x, y = self.model.sampleResExpDelta(Nx)
+        elif self.model.surgtType == 'Delta' or self.model.surgtType == 'DeltaNoiseless'\
+                and self.validationMode is True:
+            x = self.model.data_x
+            y = self.model.sampleResExpValidation()
+        elif self.model.surgtType == 'Mvn' and self.validationMode is False:
+            x, y = self.model.sampleResExpDelta(Nx)
+
+        for jj in range(0, x.size(dim=0)):
+            resid = self.pde.calcSingleResGeneral(x[jj], y[jj, :], phi)
+            res += resid**2
+
+        return res / x.size(dim=0)
     def calcSqRes(self, phi, C):
         sqRes = torch.matmul(torch.matmul(torch.reshape(phi, (1, -1)), C),
                      torch.reshape(phi, (-1, 1)))
@@ -135,22 +152,22 @@ class phiOptimizer:
         grad = -(t1 * torch.matmul(C, f) + t1*t2 - 2/t0 ** 4 * torch.matmul(torch.transpose(f, 0, 1), t2) * f)
         return grad
     def getPhiGrad(self):
-        phi_max = torch.reshape(self.phi_max, (-1, 1))
-        phi_max_old = phi_max
-        phi_max_leaf = phi_max.clone().detach().requires_grad_(True)
+        #phi_max = torch.reshape(self.phi_max, (-1, 1))
+        phi_max_old = self.phi_max
+        phi_max_leaf = self.phi_max.clone().detach().requires_grad_(True)
         model_phi = [phi_max_leaf]
         optimizer = torch.optim.Adam(model_phi, lr=self.gradLr, maximize=True)
         optimizer.zero_grad()
-        sqRes = self.calcSqRes(model_phi[0], self.calcC(self.Nx_samp_phiOpt))
+        sqRes = self.calcCGeneral(self.Nx_samp_phiOpt, model_phi[0] / torch.linalg.norm(model_phi[0]))
         loss = sqRes
         loss.backward(retain_graph=True)
         grad = -1/(2*self.pde.sigma_r**2)*model_phi[0].grad
         return grad
 
     def phiGradOpt(self):
-        phi_max = torch.reshape(self.phi_max, (-1, 1))
-        phi_max_old = phi_max
-        phi_max_leaf = phi_max.clone().detach().requires_grad_(True)
+        #phi_max = torch.reshape(self.phi_max, (-1, 1))
+        phi_max_old = self.phi_max
+        phi_max_leaf = self.phi_max.clone().detach().requires_grad_(True)
         model_phi = [phi_max_leaf]
         optimizer = torch.optim.Adam(model_phi, lr=self.gradLr, maximize=True)
         loss_history = []
@@ -158,7 +175,10 @@ class phiOptimizer:
         ### Gradient optimization loops
         for epoch in range(0, self.epoch):
             optimizer.zero_grad()
-            sqRes = self.calcSqRes( model_phi[0] / torch.linalg.norm(model_phi[0]), self.calcC(self.Nx_samp_phiOpt))
+            """ Old Method for 1D problem
+            sqRes = self.calcSqRes(model_phi[0] / torch.linalg.norm(model_phi[0]), self.calcC(self.Nx_samp_phiOpt))
+            """
+            sqRes = self.calcCGeneral(self.Nx_samp_phiOpt, model_phi[0] / torch.linalg.norm(model_phi[0]))
             # sqRes1 = self.calcSqRes(model_phi[0] / torch.linalg.norm(model_phi[0]), self.calcCValidation())
             # sqRes2 = self.calcSqRes(model_phi[0] / torch.linalg.norm(model_phi[0]), self.calcCValidation())
             # sqRes3 = self.calcSqRes(model_phi[0], self.calcCValidation())
@@ -193,10 +213,10 @@ class phiOptimizer:
             # print("loss: ",loss)
             loss_history.append(loss)
         loss_history.append(
-            self.calcSqRes( model_phi[0] / torch.linalg.norm(model_phi[0]), self.calcC(self.Nx_samp_phiOpt)))
+            self.calcCGeneral(self.Nx_samp_phiOpt, model_phi[0] / torch.linalg.norm(model_phi[0])))
         phi_max =  model_phi[0] / torch.linalg.norm(model_phi[0])
         # self.phiEigOpt()
-        phi_max = torch.squeeze(phi_max, 1)
+        #phi_max = torch.squeeze(phi_max, 1)
         self.phiGradOptTest(loss_history, phi_max_old)
         self.phi_max = phi_max
         return phi_max.clone().detach()

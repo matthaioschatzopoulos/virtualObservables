@@ -175,7 +175,7 @@ def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_hist
         for i in range(0, np.shape(phiHist)[1]):
             wHist[:, i] = weightfun(phiHist[:, i], ss)
         return torch.from_numpy(wHist)
-    if True:
+    if False:
         sInterval = torch.linspace(0, 1, 101)
         phiEvolution = torch.cat(
             (torch.zeros((1, Iter_outer + 1)), torch.from_numpy(phi_max_history), torch.zeros((1, Iter_outer + 1))), dim=0)
@@ -359,6 +359,7 @@ def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_hist
     if display_plots:
         plt.show()
 
+    """
     ### Plot of parameter profile VS Taylor parameter profile ###
     psi = psi.cpu()
     plt.plot(torch.linspace(0, 1, nele).cpu(), psi)
@@ -375,6 +376,7 @@ def plotSimplePsi_Phi(Iter_outer, nele, poly_pow, psi_history, psi, phi_max_hist
     plt.savefig("./results/taylorParam/taylorParam.png", dpi=300, bbox_inches='tight')
     if display_plots:
         plt.show()
+    """
 
     plt.figure(7)
     for i in range(0, nele):
