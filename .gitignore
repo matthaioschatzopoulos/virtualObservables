@@ -164,6 +164,7 @@ dmypy.json
 
 # Portable Document Format
 *.pdf
+*.dat
 
 # X BitMap
 *.xbm
